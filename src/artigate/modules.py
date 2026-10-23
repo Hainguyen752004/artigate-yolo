@@ -6,10 +6,15 @@ from ultralytics.nn.modules.head import Detect, Segment26
 
 
 class ChannelAttention(nn.Module):
+    """CBAM channel attention (average + max pooling through a shared MLP).
+
+    Global max pooling is computed with ``amax``: same output as ``AdaptiveMaxPool2d(1)``, but its
+    backward pass is deterministic on CUDA, so reruns with one seed can match. State dicts are
+    unchanged (the pooling layers have no parameters).
+    """
+
     def __init__(self, channels, reduction=16):
         super().__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.max_pool = nn.AdaptiveMaxPool2d(1)
         self.fc = nn.Sequential(
             nn.Conv2d(channels, channels // reduction, 1, bias=False),
             nn.ReLU(inplace=True),
@@ -18,7 +23,9 @@ class ChannelAttention(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        return self.sigmoid(self.fc(self.avg_pool(x)) + self.fc(self.max_pool(x))) * x
+        avg = x.mean(dim=(2, 3), keepdim=True)
+        peak = x.amax(dim=(2, 3), keepdim=True)
+        return self.sigmoid(self.fc(avg) + self.fc(peak)) * x
 
 
 class SpatialAttention(nn.Module):
