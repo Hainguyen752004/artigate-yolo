@@ -23,13 +23,14 @@ src/artigate/data/  views.py (v1/v7), masks.py, split.py, export.py, dataset_yam
                   synth_artifacts.py (sinh artifact có mask), artifact_dataset.py (ảnh train 7 kênh)
 scripts/          export_yolo.py, train.py, eval.py, bootstrap_ci.py,
                   eval_artifact_head.py, overfit_artifact_head.py, viz_train_batch.py, viz_artifact_maps.py,
-                  make_severity_sets.py, label_artifacts.py, make_artifact_flags.py, check_leakage.py, benchmark.py
+                  make_severity_sets.py, label_artifacts.py, make_artifact_flags.py, check_leakage.py, benchmark.py,
+                  compare_family.py (bảng của bài: trung bình 3 seed, ghép cặp, Holm), figure_synthetic_artifacts.py
 data/raw/         dữ liệu gốc (không lên git)
 data/splits/      manifest chia dữ liệu, CÓ lên git để ai cũng chia giống nhau
 data/yolo/        dữ liệu đã xuất sang YOLO-seg (không lên git)
 runs/             kết quả train/eval (không lên git)
 weights/          trọng số gốc yolo26n-seg.pt (không lên git)
-paper/            LaTeX
+paper/            bản thảo IEEE Access + Supplementary (LaTeX, mọi kết quả là \TBD; xem paper/README.md)
 tests/            pytest
 ```
 
@@ -74,7 +75,7 @@ Mọi dòng ablation đều qua `ArtiGateTrainer` (kế thừa `TransferSegmenta
 
 ```bash
 python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --data configs/data/isic2018_art.yaml --seed 0              # A4
-python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --data configs/data/isic2018_art.yaml --art-lambda 0 --seed 0  # A3
+python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate-unsup.yaml --data configs/data/isic2018_art.yaml --seed 0       # A3
 python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --data configs/data/isic2018_art.yaml --p-synth 0 --seed 0     # A5
 python scripts/train.py --model configs/models/yolo26n-seg-p2-cbam.yaml --data configs/data/isic2018_art.yaml --name A1s_s0 --seed 0     # A1s
 ```
@@ -97,6 +98,11 @@ Script ghi `eval_summary.json` (mAP của Ultralytics cùng Dice/IoU/HD95/bounda
 python scripts/bootstrap_ci.py runs/eval/A4_s0_test/per_image_metrics.csv --baseline runs/eval/A1_s0_test/per_image_metrics.csv
 # theo nhóm có/không artifact (cờ cấp ảnh từ scripts/label_artifacts.py)
 python scripts/bootstrap_ci.py ... --strata data/splits/isic2018_test_artifacts.csv
+# bảng của bài: mỗi mô hình = 3 file per_image_metrics.csv (seed 0, 1, 2), trung bình theo ảnh rồi so ghép cặp;
+# Holm trong mỗi lần gọi (một lần gọi = một họ so sánh)
+python scripts/compare_family.py --reference A1=<s0.csv>,<s1.csv>,<s2.csv> --model A4=<s0.csv>,<s1.csv>,<s2.csv> \
+    --strata data/splits/isic2018_test_artifacts.csv \
+    --subsets any_artifact,with_hair,with_ruler,with_marker,with_dark_corner,no_artifact --out runs/stats/primary
 ```
 
 ## Ablation
@@ -107,13 +113,13 @@ python scripts/bootstrap_ci.py ... --strata data/splits/isic2018_test_artifacts.
 | A1 | + CBAM (mô hình ICEEIS) | `configs/models/yolo26n-seg-p2-cbam.yaml` | sẵn sàng |
 | A1s | A1 train trên cùng dữ liệu có artifact tổng hợp | `yolo26n-seg-p2-cbam.yaml` + `isic2018_art.yaml` | sẵn sàng |
 | A2 | + đầu phụ artifact, không điều khiển | `yolo26n-seg-p2-cbam-arthead.yaml` + `isic2018_art.yaml` | sẵn sàng |
-| A3 | + AGA nhưng không có loss artifact | A4 với `--art-lambda 0` | sẵn sàng |
+| A3 | + AGA, bản đồ artifact chỉ học từ loss phân đoạn (không detach, λ = 0) | `yolo26n-seg-p2-artigate-unsup.yaml` + `isic2018_art.yaml` | sẵn sàng |
 | A4 | Đầy đủ: đầu phụ + AGA | `yolo26n-seg-p2-artigate.yaml` + `isic2018_art.yaml` | sẵn sàng |
 | A5 | A4 bỏ dán artifact tổng hợp | A4 với `--p-synth 0` | sẵn sàng |
 | A6 | A4 với từng loại artifact riêng | đánh giá: `--strata` và `make_severity_sets.py` | sẵn sàng |
 | A7 | AGA chỉ ở P2 so với P2 + P3 | `yolo26n-seg-p2-artigate-p2only.yaml` + `isic2018_art.yaml` | sẵn sàng |
 
-A1s tách hiệu ứng "tăng cường dữ liệu bằng artifact" khỏi hiệu ứng của AGA. Chi phí ở 640×640 (đã fuse): A1 2,738 M tham số / 11,21 GFLOPs, A4 2,759 M / 12,26 GFLOPs.
+A1s tách hiệu ứng "tăng cường dữ liệu bằng artifact" khỏi hiệu ứng của AGA. A3 không dùng A4 với `--art-lambda 0`: A4 detach bản đồ, nên khi λ = 0 đầu artifact không nhận gradient nào và bản đồ đứng yên ở ~0,01. A5 không có artifact tổng hợp nên chỉ có nhãn âm: đầu artifact bị đẩy về 0 ở mọi nơi, tức A5 cho biết mô hình ra sao khi giám sát không có tín hiệu dương nào. Chi phí ở 640×640 (đã fuse): A1 2,738 M tham số / 11,21 GFLOPs, A4 2,759 M / 12,26 GFLOPs.
 
 Baseline YOLO26n-seg thường dùng `--model yolo26n-seg.yaml` (YAML có sẵn của Ultralytics). Baseline hai view và baseline cạo lông (DullRazor) dùng dữ liệu xuất với `--train-views`/`--eval-views`.
 

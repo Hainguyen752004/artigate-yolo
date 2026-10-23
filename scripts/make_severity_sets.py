@@ -3,7 +3,8 @@
 For each artifact type (and "mix") and severity 1-4 every image gets artifacts composited inside
 its letterbox content area with a fixed per-image seed, then is saved again as JPEG. Labels, masks
 and metadata are copied unchanged (only hair may cover the lesion). Severity 0 is the original split.
-Seeds start at --seed-base, far from anything used in training.
+Seeds are fixed per image (md5 of stem, type and severity, plus --seed-base), so the sweep is
+reproducible; training draws fresh random seeds, so these are new draws of the same generator.
 
 Each output folder is a dataset root with its own data.yaml, so scripts/eval.py can score it:
     python scripts/make_severity_sets.py --data configs/data/isic2018.yaml --split test --out data/yolo/isic2018_sev

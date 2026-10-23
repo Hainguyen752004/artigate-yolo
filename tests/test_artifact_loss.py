@@ -47,3 +47,11 @@ def test_good_prediction_has_lower_loss():
     art = enc(pos, ~pos)
     good = torch.where(art_targets(art, (8, 8))[0] > 0, 6.0, -6.0)
     assert artifact_loss(good, art) < artifact_loss(torch.zeros(1, 4, 8, 8), art)
+
+
+def test_codes_after_mixing_are_read_conservatively():
+    # absent, absent+unknown (mix-up ~57), unknown, present+unknown (~184), present
+    values = torch.tensor([0, 57, 114, 184, 255], dtype=torch.float32) / 255
+    target, weight = art_targets(values.view(1, 1, 1, 5), (1, 5))
+    assert target.flatten().tolist() == [0, 0, 0, 0, 1]
+    assert weight.flatten().tolist() == [1, 0, 0, 0, 1]

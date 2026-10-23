@@ -31,3 +31,12 @@ def test_paired_comparison_of_identical_inputs():
 def test_paired_comparison_requires_aligned_arrays():
     with pytest.raises(ValueError, match="aligned"):
         paired_comparison([0.1, 0.2], [0.1])
+
+
+def test_holm_adjust_matches_the_step_down_definition():
+    from artigate.stats import holm_adjust
+
+    # sorted p: 0.01, 0.02, 0.03, 0.04 -> 4*0.01, max(.04, 3*.02), max(.06, 2*.03), max(.06, .04)
+    assert holm_adjust([0.04, 0.01, 0.03, 0.02]) == pytest.approx([0.06, 0.04, 0.06, 0.06])
+    assert holm_adjust([0.5, 0.9]) == pytest.approx([1.0, 1.0])
+    assert holm_adjust([]) == []

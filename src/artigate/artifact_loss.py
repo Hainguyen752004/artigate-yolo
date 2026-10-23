@@ -14,7 +14,9 @@ from ultralytics.nn.tasks import SegmentationModel
 
 from artigate.modules import ArtifactHead
 
-POSITIVE, NEGATIVE = 0.75, 0.25
+# Thresholds on the artifact channels after /255 (codes 255 present, 0 absent, 114 = 0.447 unknown).
+# Absent must stay clearly below the unknown code: mix-up of absent with unknown (~57 = 0.22) is unknown.
+POSITIVE, NEGATIVE = 0.75, 0.1
 
 
 def artifact_targets(art, size):

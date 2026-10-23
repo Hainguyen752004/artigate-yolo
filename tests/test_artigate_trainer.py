@@ -86,6 +86,17 @@ def test_art_lambda_zero_switches_the_artifact_loss_off(art_dataset, tmp_path):
     assert captured["items"][-1] == 0
 
 
+def test_unsupervised_row_trains_the_head_through_aga_only(art_dataset, tmp_path):
+    from artigate.modules import AGA
+
+    register_modules()
+    a3 = ROOT / "configs" / "models" / "yolo26n-seg-p2-artigate-unsup.yaml"
+    blocks = [m for m in YOLO(str(a3)).model.model if isinstance(m, AGA)]
+    assert len(blocks) == 2 and not any(m.detach for m in blocks)
+    captured = _train_one_batch(a3, art_dataset, tmp_path)
+    assert captured["items"][-1] == 0  # lambda 0 in the YAML: no artifact loss
+
+
 def test_baseline_rows_train_with_the_same_trainer(yolo_dataset, tmp_path):
     captured = _train_one_batch(ROOT / "configs" / "models" / "yolo26n-seg-p2-cbam.yaml", yolo_dataset, tmp_path)
     assert len(captured["items"]) == 6 and captured["items"][-1] == 0

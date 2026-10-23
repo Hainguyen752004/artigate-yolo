@@ -1,7 +1,7 @@
 """How well does the ArtifactHead find artifacts? Held-out synthetic artifacts with fixed seeds.
 
 For each exported image (640 canvas) artifacts are composited inside the content area with a fixed
-per-image seed (different from training), the model runs once, and each predicted map (p > --thr)
+per-image seed (new draws; training seeds are random), the model runs once, and each predicted map (p > --thr)
 is compared with the exact synthetic mask; anti-aliased edges are ignored. Per type it reports IoU
 (summed intersection / summed union), the mean per-image Dice and the share of pixels predicted
 positive on the untouched image ("activation on clean"). Real hair or rulers already in the photo

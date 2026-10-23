@@ -28,3 +28,18 @@ def paired_comparison(model_values, baseline_values, n_boot=2000, seed=0, level=
     ci = bootstrap_ci(difference, n_boot=n_boot, seed=seed, level=level)
     p_value = float(stats.wilcoxon(model_values, baseline_values).pvalue) if np.any(difference != 0) else 1.0
     return {"mean_difference": ci["point"], "ci_low": ci["ci_low"], "ci_high": ci["ci_high"], "wilcoxon_p": p_value}
+
+
+def holm_adjust(p_values):
+    """Holm step-down adjusted p-values (family-wise error control), in the input order."""
+    p = np.asarray(p_values, dtype=float)
+    if p.size == 0:
+        return []
+    order = np.argsort(p, kind="stable")
+    m = p.size
+    adjusted = np.empty(m)
+    running = 0.0
+    for rank, index in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * p[index]))
+        adjusted[index] = running
+    return adjusted.tolist()
