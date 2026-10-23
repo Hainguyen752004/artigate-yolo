@@ -10,7 +10,7 @@ STOCK_YAML = ULTRALYTICS_ROOT / "cfg" / "models" / "26" / "yolo26-seg.yaml"
 # The bottom-up head is rebuilt around the extra P2 level and is never transferred.
 STOCK_TRANSFERABLE_LAYERS = 17
 # Layers inserted on top of the stock topology; they have no stock counterpart.
-INSERTED_MODULES = frozenset({"CBAM"})
+INSERTED_MODULES = frozenset({"CBAM", "ArtifactHead", "AGA"})
 
 
 def _layers(cfg):
