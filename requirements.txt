@@ -1,0 +1,16 @@
+# Reference environment: the ICEEIS environment (Python 3.9.23, conda env vungcam_2026).
+# CUDA 12.4 PyTorch wheels come from the official PyTorch index; if torch is already
+# installed by conda, keep it and use this file for the remaining packages.
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+ultralytics==8.4.13
+
+numpy==1.26.4
+opencv-python==4.11.0.86
+PyYAML==6.0.2
+scipy==1.13.1
+tqdm==4.67.3
+
+pytest==8.4.2

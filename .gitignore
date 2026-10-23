@@ -218,3 +218,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- ArtiGate-YOLO ---
+# Data, training outputs and weights stay out of git; split manifests are tracked.
+data/raw/*
+data/yolo/*
+data/interim/*
+!data/*/.gitkeep
+DTA/
+runs/
+weights/
+*.pt
+*.onnx
+*.engine

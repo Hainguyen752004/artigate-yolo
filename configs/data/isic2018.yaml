@@ -1,0 +1,8 @@
+# ISIC 2018 Task 1, official train/val/test splits, exported by scripts/export_yolo.py.
+# `path` is relative to this file; scripts rewrite it to an absolute path for Ultralytics.
+path: ../../data/yolo/isic2018
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: lesion

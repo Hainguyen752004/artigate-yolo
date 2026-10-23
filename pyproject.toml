@@ -1,0 +1,9 @@
+[project]
+name = "artigate-yolo"
+version = "0.1.0"
+description = "ArtiGate-YOLO: Artifact-Supervised Gated Attention for Robust Real-Time Skin Lesion Segmentation"
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

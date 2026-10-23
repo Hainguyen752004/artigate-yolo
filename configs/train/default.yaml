@@ -1,0 +1,20 @@
+# Shared schedule for every Paper 1 model (A0-A7 and the YOLO baselines).
+# Values come from the ICEEIS final run (SkinSeg_YOLO26_P2_CBAM_640/args.yaml);
+# anything not listed keeps the Ultralytics 8.4.13 default.
+epochs: 200
+patience: 100
+batch: 16
+imgsz: 640
+workers: 8
+optimizer: auto
+cos_lr: true
+warmup_epochs: 3.0
+close_mosaic: 10
+mosaic: 1.0
+mixup: 0.1
+copy_paste: 0.1
+flipud: 0.5
+degrees: 180.0
+scale: 0.5
+mask_ratio: 2
+deterministic: true
