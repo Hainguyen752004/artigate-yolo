@@ -84,16 +84,20 @@ def ground_truth_mask(stem, mask_dir, label_dir, shape):
 
 def per_image_rows(model, image_paths, mask_dir, label_dir, args, device):
     rows = []
-    conf = TOP1_CONF if args.mask_rule == "top1" else args.conf
-    results = model.predict(
-        source=[str(path) for path in image_paths], imgsz=640, conf=conf, iou=0.7, batch=args.batch,
-        device=device, retina_masks=True, stream=True, verbose=False,
-    )
-    for path, result in zip(image_paths, results):
-        shape = result.orig_shape
-        truth = ground_truth_mask(path.stem, mask_dir, label_dir, shape)
-        prediction = predicted_mask(result, args.mask_rule, args.conf, shape)
-        rows.append({"image_id": path.stem, **binary_metrics(prediction, truth)})
+    # Predictions come sorted by confidence, so top1 needs only the first one.
+    conf, max_det = (TOP1_CONF, 1) if args.mask_rule == "top1" else (args.conf, 300)
+    # Ultralytics predicts a list source as ONE batch whatever `batch` says, so feed it in chunks.
+    for start in range(0, len(image_paths), args.batch):
+        chunk = image_paths[start:start + args.batch]
+        results = model.predict(
+            source=[str(path) for path in chunk], imgsz=640, conf=conf, iou=0.7, max_det=max_det,
+            device=device, retina_masks=True, verbose=False,
+        )
+        for path, result in zip(chunk, results):
+            shape = result.orig_shape
+            truth = ground_truth_mask(path.stem, mask_dir, label_dir, shape)
+            prediction = predicted_mask(result, args.mask_rule, args.conf, shape)
+            rows.append({"image_id": path.stem, **binary_metrics(prediction, truth)})
     return rows
 
 
