@@ -1,0 +1,33 @@
+\subsection{Skin Lesion Segmentation}
+Encoder-decoder networks derived from U-Net~\cite{ronneberger2015unet} dominate dermoscopic lesion segmentation, and the self-configuring nnU-Net~\cite{isensee2021nnunet} is a strong general-purpose reference; a recent survey covers the field~\cite{mirikharaji2023survey}. For deployment on limited hardware, lightweight variants such as MALUNet~\cite{ruan2022malunet} and EGE-UNet~\cite{ruan2023egeunet} reduce parameters and computation. Single-stage instance segmentation models of the YOLO family offer real-time inference and a mature training pipeline with strong augmentation~\cite{bochkovskiy2020yolov4,jocher2026yolo26}; YOLO26 removes non-maximum suppression and predicts masks from prototypes. \TBD{Add 2--3 recent YOLO-based lesion segmentation papers after the October 2026 literature check.}
+
+\subsection{Artifacts and Shortcut Learning in Dermoscopy}
+Bissoto~\etal\ annotated seven artifact types (dark corners, hair, gel borders, gel bubbles, rulers, ink markings and patches) on the ISIC 2018 training images and showed that classifiers exploit them~\cite{bissoto2020debiasing,bissoto2022artifact}; the labels were later used for artifact-based domain generalization~\cite{bissoto2022artifact}. Surgical ink markings changed the outputs of a melanoma classifier~\cite{winkler2019markings}. These findings are instances of shortcut learning~\cite{geirhos2020shortcut}. For segmentation, the usual response is hair removal before training or inference~\cite{lee1997dullrazor,rana2025explainable}.
+
+Closest to our work are methods that handle artifacts inside the network. FSSM-ResNet embeds a fuzzy structural suppression module that scores hair-like pixels by darkness, thinness and linearity and suppresses them during decoding~\cite{raikhankyzy2026fssm}. A dual-resolution residual network predicts a per-pixel artifact confidence map with a shallow head and uses it, with a learned strength, to scale the residual stream; the head receives no direct supervision~\cite{singh2025dualresolution}. An artifact-aware lightweight segmenter combines Laplacian, bright-region, dark-region and learned responses in a multi-cue stem and gates the skip connections with the propagated artifact cues~\cite{gong2026artifactaware}. Table~\ref{tab:related} contrasts these designs with ours: none supervises the artifact map with artifact masks, none separates artifact types, and none is a real-time YOLO-style model.
+
+\begin{table}[!t]
+\centering
+\caption{Methods that handle dermoscopic artifacts inside or before the segmentation network.}
+\label{tab:related}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.21\columnwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.14\columnwidth}>{\raggedright\arraybackslash}p{0.15\columnwidth}@{}}
+\toprule
+Method & Artifact estimate & Types & Supervised map \\
+\midrule
+DullRazor~\cite{lee1997dullrazor} & Morphological filter + inpainting before the model & Hair & No (rules) \\
+YOLO + hair removal~\cite{rana2025explainable} & Separate preprocessing step & Hair & No (rules) \\
+FSSM-ResNet~\cite{raikhankyzy2026fssm} & Embedded fuzzy hair score, suppression in decoder & Hair & No (rules) \\
+Dual-resolution~\cite{singh2025dualresolution} & Shallow confidence head scales residual stream & Unspecified & No \\
+Artifact-aware~\cite{gong2026artifactaware} & Multi-cue stem, gated skip fusion & Unspecified & No \\
+\textbf{Ours} & Artifact head on stride-4 features, gates attention & 4 & Yes (synthetic + partial) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Attention and Auxiliary Supervision}
+Squeeze-and-excitation~\cite{hu2018senet} and CBAM~\cite{woo2018cbam} reweight channels and spatial positions from pooled feature statistics. Their spatial attention is computed from the features alone, so nothing tells it which bright or dark structures are irrelevant. Auxiliary tasks can shape shared representations~\cite{caruana1997multitask}; in our ablation, an artifact head trained only as an auxiliary task (row A2) separates this multi-task effect from the effect of feeding the artifact map into attention (row A4).
+
+\subsection{Synthetic Artifacts and Robustness Evaluation}
+Physics- and knowledge-based simulators generate skin images with exact masks: S-SYNTH models skin layers, lesions and hair~\cite{kim2024ssynth}, and OASIS adds rulers, calibration charts, hair and vessels with pixel-level masks and artifact-free counterparts~\cite{sizikova2026oasis}. Corruption benchmarks quantify robustness by severity level~\cite{hendrycks2019benchmarking}. We use procedural compositing on real dermoscopic images both to supervise the artifact head and to build a severity sweep; because a generator shared by training and testing can overstate robustness, our main robustness claims rest on real artifacts (Section~\ref{sec:protocol}).

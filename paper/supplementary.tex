@@ -1,0 +1,642 @@
+% Supplementary Material for the ArtiGate-YOLO manuscript.
+% Section, table, figure and equation numbers carry the prefix S. Every value written as \res or
+% \TBD{...} does not exist yet; fill it from runs/ (see paper/README.md for the script behind each table).
+% Values that are not marked are design constants read from the code on branch feat/artigate-v0.1.
+
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage[labelfont=bf,font=small]{caption}
+\usepackage{float}    % [H]: every table and figure stays in its section
+\usepackage{tocloft}
+\setlength{\cftsecnumwidth}{2.8em}
+\setlength{\cftsubsecnumwidth}{3.6em}
+\usepackage[hidelinks]{hyperref}
+\input{macros}
+
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\theequation}{S\arabic{equation}}
+
+% Standard note under every table with paired statistics.
+\newcommand{\pairedcaveat}[1]{%
+  \par\smallskip{\footnotesize\noindent Differences are row minus #1, per image after averaging each image over the three seeds; 95\% percentile bootstrap interval over images (2,000 resamples, seed 0); $p$: two-sided Wilcoxon signed-rank test with zero differences discarded; $p_{\mathrm{Holm}}$: Holm adjustment within the family named in the caption. W/T/L: images on which the row is better / equal / worse than #1.\par}}
+
+\title{Supplementary Material for\\[2pt]
+\large ArtiGate-YOLO: Artifact-Supervised Gated Attention for Robust Real-Time Skin Lesion Segmentation}
+\author{\TBD{Authors}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\noindent This document accompanies the main manuscript. It gives the metric conventions (S1), training histories (S2), the parameters of the artifact generator and the partial labels (S3--S4), the complete statistical tables behind the main results (S5--S9, S11), cost measurements (S10), published values of related methods (S12), implementation details (S13), the data inventory (S14) and the relation to our conference paper (S15). Unless stated otherwise, results are on the official ISIC 2018 Task~1 test set (1,000 images) on the $640\times640$ letterbox canvas with the top-1 mask rule.
+
+\tableofcontents
+\clearpage
+
+% =================================================================================================
+\section{Metric Definitions and Mask Rules}\label{sec:s-metrics}
+All metrics are computed per image on the $640\times640$ canvas, on which images and ground-truth masks are letterboxed with the same transform. None of the four metrics counts true negatives, so the padded area does not inflate them. Let $P$ and $G$ be the predicted and ground-truth pixel sets.
+\begin{align}
+\mathrm{Dice}&=\frac{2|P\cap G|}{|P|+|G|}, &
+\mathrm{IoU}&=\frac{|P\cap G|}{|P\cup G|}.
+\end{align}
+The boundary $\partial M$ of a mask is the set of mask pixels removed by one binary erosion with the 4-connected cross (pixels outside the image count as background). With $d(x,\partial M)$ the Euclidean distance from pixel $x$ to the nearest pixel of $\partial M$ (exact distance transform),
+\begin{equation}
+\mathrm{HD95}=Q_{0.95}\big(\{d(x,\partial G):x\in\partial P\}\cup\{d(y,\partial P):y\in\partial G\}\big),
+\end{equation}
+the 95th percentile of the pooled symmetric boundary distances (MedPy convention), in canvas pixels. The boundary F1 score~\cite{csurka2013bf} uses a tolerance $\tau=0.0075\times$ the image diagonal, $\tau=6.79$~px on the canvas:
+\begin{equation}
+\mathrm{BP}=\frac{|\{x\in\partial P:d(x,\partial G)\le\tau\}|}{|\partial P|},\quad
+\mathrm{BR}=\frac{|\{y\in\partial G:d(y,\partial P)\le\tau\}|}{|\partial G|},\quad
+\mathrm{BF1}=\frac{2\,\mathrm{BP}\,\mathrm{BR}}{\mathrm{BP}+\mathrm{BR}}.
+\end{equation}
+
+\paragraph{Empty masks}
+If both masks are empty, Dice, IoU and BF1 are 1 and HD95 is 0. If exactly one is empty, Dice, IoU and BF1 are 0 and HD95 is the canvas diagonal (905.1~px), the largest possible distance. Every ISIC 2018 test image contains a lesion, so an empty prediction always receives these worst-case values; their number per model is reported in Table~\ref{tab:s-empty}.
+
+\paragraph{From instances to one mask}
+The models predict lesion instances. Instance masks are produced at input resolution (\texttt{retina\_masks}) and binarized at probability 0.5. The \emph{top-1} rule keeps the mask of the instance with the highest confidence among all predictions with confidence $\ge0.001$; it is the rule of the conference paper and the primary analysis. The \emph{union} rule merges every instance with confidence $\ge0.25$; it is a sensitivity analysis (Section~\ref{sec:s-sensitivity}). \TBD{Confirm the primary rule on the validation set before scoring the test set.}
+
+\paragraph{Detection metrics}
+Mask mAP50 and mAP50--95 are computed by the Ultralytics 8.4.13 validator on the same split and are point estimates without intervals.
+
+\begin{table}[H]
+\centering
+\caption{Images with an empty predicted mask (worst-case scores) per model and seed, ISIC 2018 test set, top-1 rule.}
+\label{tab:s-empty}
+\small
+\begin{tabular}{lccc}
+\toprule
+Model & Seed 0 & Seed 1 & Seed 2 \\
+\midrule
+A1 & \res & \res & \res \\
+A1s & \res & \res & \res \\
+A4 & \res & \res & \res \\
+\TBD{all other rows} & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =================================================================================================
+\section{Training Histories}\label{sec:s-histories}
+\begin{figure}[H]
+\centering
+\placeholderfig{6cm}{Training curves of A1, A1s, A3 and A4 (seed 0): total segmentation loss, artifact loss (A2--A7), validation mask mAP50--95 and the learned $\beta_2,\beta_3$ per epoch. Source: runs/segment/<run>/results.csv and the AGA parameters of the saved checkpoints.}
+\caption{Training histories. \TBD{Epoch of the best checkpoint and of early stopping for every run (Table~\ref{tab:s-seeds}).}}
+\label{fig:s-histories}
+\end{figure}
+
+% =================================================================================================
+\section{Synthetic Artifact Generator}\label{sec:s-generator}
+The generator (\texttt{src/artigate/data/synth\_artifacts.py}) draws on 8-bit BGR images and returns, for every type, the \emph{core mask} used as the present label and the set of all pixels it changed; pixels that were changed but are outside the core (anti-aliased edges, soft fall-off) are set to unknown. All sizes are relative to $s$, the shorter side of the image content area (letterbox padding excluded). Types are drawn in physical order: marker ink, hair, ruler, dark corner.
+
+\begin{table}[H]
+\centering
+\caption{Generator parameters. $U(a,b)$: uniform; severity $k\in\{1,2,3,4\}$ is drawn per type and image during training.}
+\label{tab:s-generator}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.27\textwidth}@{}}
+\toprule
+Type & Geometry and appearance & Severity dependence and label \\
+\midrule
+Hair &
+Cubic B\'ezier strands of length $U(0.15,0.8)\,s$, random direction, start point up to 10\% outside the image, inner control points displaced perpendicular to the chord with a standard deviation of $0.15\times$ the length; width $\max(1,U(0.002,0.007)\,s)$ px; anti-aliased, Gaussian blur $\sigma=0.6$, opacity $U(0.75,1)$. Colour: 90\% dark brown/black (base intensity $U(10,60)$ with per-channel factors), 10\% light/grey ($U(120,190)$). May cross the lesion. &
+Strands per image: $U\{2..5\}$, $U\{6..14\}$, $U\{15..34\}$, $U\{35..69\}$ for $k=1..4$. Present: opacity $>0.35$. \\
+\addlinespace
+Ruler &
+Band along one image border at an offset of $U(0,0.04)\,s$, width $\max(6,U(0.04,0.08)\,s\cdot w_k)$ px, covering $U(0.5,1)$ of the border ($U(0.75,1)$ for $k\ge3$). 85\% light body ($U(215,255)$) with dark ticks, 15\% dark body with light ticks; ticks every $U(0.012,0.025)\,s$ (long every 10th, medium every 5th), numerals at 70\% of the long ticks on bands at least 18~px high; opacity $U(0.55,0.9)$. Rejected if it would overlap the lesion box enlarged by $0.03\,s$. &
+$w_k=0.6,0.85,1.1,1.25$; two rulers on different borders at $k=4$. Present: the whole band. \\
+\addlinespace
+Marker ink &
+Around the lesion box on an ellipse with semi-axes $1.2$--$1.5\times$ the box half-sizes plus $0.04\,s$. Style: dots (45\%), arc (35\%) or strokes (20\%); line width $\max(2,U(0.008,0.02)\,s)$; colour purple (75\%), blue (15\%) or black (10\%); Gaussian blur $\sigma=U(0.8,2)$, opacity $U(0.5,0.9)$. Nothing is drawn inside the lesion box enlarged by $0.01\,s$, before or after blurring. &
+Dots: $U\{2+2k..3+3k\}$; arc span $60^\circ,120^\circ,220^\circ,340^\circ$ ($\pm20^\circ$); strokes: $U\{k..2k+1\}$, length $U(0.04,0.12)\,s$. Present: opacity $>0.2$. \\
+\addlinespace
+Dark corner &
+Circular aperture centred near the image centre (normal jitter of 3\% per axis) with radius $r$ times the half-diagonal and a smoothstep edge of width $U(0.01,0.05)\,s$; outside, the image is replaced by dark noise (level $U(0,25)$, $\sigma=3$). The radius is enlarged if needed so the lesion box stays inside with a margin of $0.03\,s$; if the aperture would then cover the whole image, no corner is drawn. &
+$r\sim U(0.92,0.99)$, $U(0.82,0.92)$, $U(0.72,0.82)$, $U(0.62,0.72)$ for $k=1..4$. Present: blend weight $>0.5$. \\
+\midrule
+Training &
+\multicolumn{2}{>{\raggedright\arraybackslash}p{0.68\textwidth}}{Probability that an image receives artifacts $p_{\mathrm{synth}}=0.7$; type probabilities 0.5 (hair), 0.3 (ruler, ink, corner), at least one type per image; severity $U\{1..4\}$ per type; artifacts are drawn inside the letterbox content area only; the lesion box is the union of the ground-truth instance boxes.} \\
+Severity sweep &
+\multicolumn{2}{>{\raggedright\arraybackslash}p{0.68\textwidth}}{One type forced, or ``mix'' with type probabilities 0.6/0.4/0.4/0.4, at a fixed severity; per-image seed from the MD5 hash of image name, type and severity plus a base of 10,000; JPEG quality 95.} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent Figure~\ref{fig:s-generator} shows \TBD{n} random training samples after the full augmentation pipeline with the four target maps (\texttt{scripts/viz\_train\_batch.py}).
+\begin{figure}[H]
+\centering
+\placeholderfig{5cm}{Augmented training batch (mosaic, rotation, synthetic artifacts) with the four target channels: present (white), absent (black), unknown (grey). Produce with scripts/viz\_train\_batch.py on the ISIC 2018 training set.}
+\caption{Training samples and their partial artifact targets after augmentation.}
+\label{fig:s-generator}
+\end{figure}
+
+% =================================================================================================
+\section{Partial Labels and Target Coding}\label{sec:s-labels}
+For every training image and artifact type, each pixel is present, absent or unknown. The target maps start as unknown and are filled in the order of Table~\ref{tab:s-labels}; later steps overwrite earlier ones.
+
+\begin{table}[H]
+\centering
+\caption{Sources of the artifact targets, in the order they are applied.}
+\label{tab:s-labels}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Step & Rule \\
+\midrule
+1. Rules (absent) &
+Hair: no thin dark structure, i.e.\ morphological black-hat response of the grey image $\le8$ (elliptical element of $\max(9,0.025\,s')$ px, made odd, with $s'$ the shorter side of the loaded image). Ruler: neither white/grey (HSV saturation $<40$ and value $>150$) nor very dark (value $<60$). Marker ink: neither purple/blue (OpenCV hue 95--170 with saturation $>40$) nor very dark. The candidate regions of these three rules are dilated by a $5\times5$ square before taking the complement. Dark corner: value $\ge70$. Ruler and marker ink are also absent inside the lesion box shrunk by 10\% per side. \\
+\addlinespace
+2. Image-level labels (absent) &
+For ISIC 2018 training images whose annotation~\cite{bissoto2020debiasing} says a type is not present, every pixel of that type is absent. Mapping of the annotation columns: \texttt{hair}$\to$hair, \texttt{ruler}$\to$ruler, \texttt{ink}$\to$marker ink, \texttt{dark\_corner}$\to$dark corner (\texttt{scripts/make\_artifact\_flags.py}). A positive image-level label sets nothing, because it does not say where the artifact is. \\
+\addlinespace
+3. Synthetic artifacts &
+Core mask present; other changed pixels unknown (Section~\ref{sec:s-generator}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Coding and augmentation}
+The four maps are stored as image channels 4--7 with the codes 255 (present), 0 (absent) and 114 (unknown, the Ultralytics padding value) and are transformed with the image. After augmentation a value $v$ is read as present if $v/255\ge0.75$, absent if $v/255\le0.1$ and unknown otherwise. The absent threshold lies well below the unknown code (0.447), so that a pixel mixed by mix-up from an absent and an unknown pixel (about 57, or 0.22) stays unknown. Padding introduced by the augmentations is unknown (114) or absent (0); both are correct because padding contains no artifact. A synthetic artifact drawn later can cover an earlier one (for example, the aperture over hair); the earlier core mask is kept, so a few covered pixels remain labelled present. The colour augmentation (HSV gains) acts on channels 1--3 only.
+
+\paragraph{Downsampling to stride 4}
+For the loss, a cell of the $160\times160$ logit grid is positive if any pixel inside it is present (max pooling), negative if every pixel inside it is absent (min pooling), and ignored otherwise. A type contributes to the loss of a batch only if at least one of its cells is labelled.
+
+\paragraph{Coverage}
+\TBD{Table~\ref{tab:s-coverage}: share of present, absent and unknown cells per type over one training epoch (seed 0), to show that negatives dominate but do not cover every pixel.}
+\begin{table}[H]
+\centering
+\caption{Label coverage of the artifact targets at stride 4 over one training epoch (\%).}
+\label{tab:s-coverage}
+\small
+\begin{tabular}{lccc}
+\toprule
+Type & Present & Absent & Unknown \\
+\midrule
+Hair & \res & \res & \res \\
+Ruler & \res & \res & \res \\
+Marker ink & \res & \res & \res \\
+Dark corner & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =================================================================================================
+\section{Complete Ablation Results}\label{sec:s-ablation}
+Tables~\ref{tab:s-ablation-dice}--\ref{tab:s-ablation-shape} extend the ablation of the main text to all metrics. Each row is compared with A4; the family is the seven comparisons of one metric. Script: \texttt{scripts/compare\_family.py} with A4 as reference.
+
+\begin{table}[H]
+\centering
+\caption{Ablation, Dice and IoU. Family: rows A0--A7 versus A4 on the full test set, per metric.}
+\label{tab:s-ablation-dice}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccccccc}
+\toprule
+& \multicolumn{5}{c}{Dice} & \multicolumn{5}{c}{IoU} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-11}
+Row & Mean & $\Delta$ [95\% CI] & $p$ & $p_{\mathrm{Holm}}$ & W/T/L & Mean & $\Delta$ [95\% CI] & $p$ & $p_{\mathrm{Holm}}$ & W/T/L \\
+\midrule
+A0 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A1 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A1s & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A2 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A3 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\textbf{A4} & \res & Ref. & -- & -- & -- & \res & Ref. & -- & -- & -- \\
+A5 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A7 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\pairedcaveat{A4}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Ablation, HD95 (canvas pixels, lower is better) and boundary F1. Family as in Table~\ref{tab:s-ablation-dice}.}
+\label{tab:s-ablation-shape}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccccccc}
+\toprule
+& \multicolumn{5}{c}{HD95 (px)} & \multicolumn{5}{c}{BF1} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-11}
+Row & Mean & $\Delta$ [95\% CI] & $p$ & $p_{\mathrm{Holm}}$ & W/T/L & Mean & $\Delta$ [95\% CI] & $p$ & $p_{\mathrm{Holm}}$ & W/T/L \\
+\midrule
+A0 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A1 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A1s & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A2 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A3 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\textbf{A4} & \res & Ref. & -- & -- & -- & \res & Ref. & -- & -- & -- \\
+A5 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A7 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\pairedcaveat{A4}
+\par\smallskip{\footnotesize\noindent For HD95, W means a lower distance than A4.\par}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{External baselines versus A4 on the ISIC 2018 test set. Family: the baselines of the main comparison, per metric.}
+\label{tab:s-external-family}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+Model & $\Delta$Dice [95\% CI] & $p_{\mathrm{Holm}}$ & $\Delta$HD95 [95\% CI] & $p_{\mathrm{Holm}}$ & $\Delta$BF1 [95\% CI] & $p_{\mathrm{Holm}}$ \\
+\midrule
+YOLO26n-seg & \res & \res & \res & \res & \res & \res \\
+A1, v7 view & \res & \res & \res & \res & \res & \res \\
+A1, v1 + v7 & \res & \res & \res & \res & \res & \res \\
+U-Net & \res & \res & \res & \res & \res & \res \\
+MALUNet & \res & \res & \res & \res & \res & \res \\
+EGE-UNet & \res & \res & \res & \res & \res & \res \\
+nnU-Net 2D & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\pairedcaveat{A4}
+\end{table}
+
+\paragraph{Learned gate strengths}
+\TBD{$\beta_2$ and $\beta_3$ of every AGA row and seed (mean, min, max), and the norm of the $\bar{A}$-channel weights of the $7\times7$ convolution, to show how far each AGA block moved away from CBAM.}
+
+% =================================================================================================
+\section{Artifact-Stratified Results and Test-Set Annotation}\label{sec:s-strata}
+\subsection{Annotation of the ISIC 2018 test set}
+The test images were divided between two annotators, who marked the presence of hair, ruler, marker ink and dark corner with \texttt{scripts/label\_artifacts.py} (one key per type, images in filename order, no model output shown). \TBD{Written definitions used by the annotators: e.g.\ hair = at least one terminal hair crossing or touching the lesion or within \textit{x}\% of the image; ruler = any printed scale; marker ink = any surgical marking; dark corner = dark aperture visible in at least one corner.} A common subset of 200 images, selected at random with seed \TBD{x}, was labelled by both; \TBD{disagreements on it were resolved by discussion}.
+
+\begin{table}[H]
+\centering
+\caption{Test-set artifact labels: prevalence and inter-annotator agreement on the common subset (Cohen's $\kappa$~\cite{cohen1960kappa} with a 95\% bootstrap interval over images).}
+\label{tab:s-kappa}
+\small
+\begin{tabular}{lccc}
+\toprule
+Type & Images with artifact ($n$, \%) & Raw agreement (\%) & $\kappa$ [95\% CI] \\
+\midrule
+Hair & \res & \res & \res \\
+Ruler & \res & \res & \res \\
+Marker ink & \res & \res & \res \\
+Dark corner & \res & \res & \res \\
+Any artifact & \res & -- & -- \\
+None & \res & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Complete stratified comparison}
+\begin{table}[H]
+\centering
+\caption{A4 versus A1 by artifact stratum, all metrics. Family (primary): the six strata of this table for Dice; the other metrics are adjusted in their own families. Script: \texttt{scripts/compare\_family.py --strata}.}
+\label{tab:s-strata}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccccccccc}
+\toprule
+Stratum & $n$ & Dice A1 & Dice A4 & $\Delta$Dice [95\% CI] & $p_{\mathrm{Holm}}$ & W/T/L & $\Delta$IoU [95\% CI] & $\Delta$HD95 [95\% CI] & $\Delta$BF1 [95\% CI] \\
+\midrule
+Any artifact & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+With hair & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+With ruler & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+With marker ink & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+With dark corner & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+Artifact-free & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\pairedcaveat{A1}
+\par\smallskip{\footnotesize\noindent Strata overlap: an image with hair and a ruler is in both. Strata with fewer than 10 images are not tested.\par}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Secondary stratified comparisons (Dice): A4 versus A1s (does supervision add to artifact augmentation?) and A4 versus the best external baseline. Holm within each comparison over the six strata.}
+\label{tab:s-strata-secondary}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{A4 $-$ A1s} & \multicolumn{2}{c}{A4 $-$ \TBD{best baseline}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Stratum & $\Delta$Dice [95\% CI] & $p_{\mathrm{Holm}}$ & $\Delta$Dice [95\% CI] & $p_{\mathrm{Holm}}$ \\
+\midrule
+Any artifact & \res & \res & \res & \res \\
+With hair & \res & \res & \res & \res \\
+With ruler & \res & \res & \res & \res \\
+With marker ink & \res & \res & \res & \res \\
+With dark corner & \res & \res & \res & \res \\
+Artifact-free & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\pairedcaveat{the second model}
+\end{table}
+
+% =================================================================================================
+\section{Synthetic Severity Sweep}\label{sec:s-severity}
+Test images receive artifacts of one type (or a mix) at severity 1--4 (Table~\ref{tab:s-generator}); severity 0 is the original test set. The sweep uses the generator seen in training by A1s--A4 and A7, so it is reported descriptively and is not part of the success criteria.
+
+\begin{table}[H]
+\centering
+\caption{Dice under synthetic artifacts (mean over images and seeds, 95\% bootstrap interval in the source files). Drop: severity 0 minus severity 4.}
+\label{tab:s-severity}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{llcccccc}
+\toprule
+Type & Model & Sev.\ 0 & Sev.\ 1 & Sev.\ 2 & Sev.\ 3 & Sev.\ 4 & Drop \\
+\midrule
+\multirow{4}{*}{Hair} & A1 & \res & \res & \res & \res & \res & \res \\
+ & A1s & \res & \res & \res & \res & \res & \res \\
+ & A4 & \res & \res & \res & \res & \res & \res \\
+ & \TBD{best baseline} & \res & \res & \res & \res & \res & \res \\
+\midrule
+\multirow{4}{*}{Ruler} & A1 & \res & \res & \res & \res & \res & \res \\
+ & A1s & \res & \res & \res & \res & \res & \res \\
+ & A4 & \res & \res & \res & \res & \res & \res \\
+ & \TBD{best baseline} & \res & \res & \res & \res & \res & \res \\
+\midrule
+\multirow{4}{*}{Marker ink} & A1 & \res & \res & \res & \res & \res & \res \\
+ & A1s & \res & \res & \res & \res & \res & \res \\
+ & A4 & \res & \res & \res & \res & \res & \res \\
+ & \TBD{best baseline} & \res & \res & \res & \res & \res & \res \\
+\midrule
+\multirow{4}{*}{Dark corner} & A1 & \res & \res & \res & \res & \res & \res \\
+ & A1s & \res & \res & \res & \res & \res & \res \\
+ & A4 & \res & \res & \res & \res & \res & \res \\
+ & \TBD{best baseline} & \res & \res & \res & \res & \res & \res \\
+\midrule
+\multirow{4}{*}{Mix} & A1 & \res & \res & \res & \res & \res & \res \\
+ & A1s & \res & \res & \res & \res & \res & \res \\
+ & A4 & \res & \res & \res & \res & \res & \res \\
+ & \TBD{best baseline} & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =================================================================================================
+\section{Artifact Head Evaluation}\label{sec:s-arthead}
+The head is scored on \TBD{100} ISIC 2018 validation images with held-out synthetic artifacts (severity 1--4, per-image seeds from a base of 20,000) at a probability threshold of 0.5 (\texttt{scripts/eval\_artifact\_head.py}). IoU is the summed intersection over the summed union of all images; Dice is the mean per image; anti-aliased edges are ignored. ``Clean activation'' is the share of pixels predicted as artifact on the unmodified images, averaged over the four types. For A3 the maps are not trained to match artifact types, so its per-type values show only whether the unsupervised map happens to align with them. Real artifacts in the images count as errors in both measures, so the values are lower bounds that serve to compare rows.
+
+\begin{table}[H]
+\centering
+\caption{Artifact head by type: IoU / per-image Dice on held-out synthetic artifacts, and clean activation (\%). Mean over three seeds.}
+\label{tab:s-arthead}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccc}
+\toprule
+Row & Hair & Ruler & Marker ink & Dark corner & Clean act.\ (\%) \\
+\midrule
+A2 & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res & \res \\
+A3 (unsupervised) & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res & \res \\
+\textbf{A4} & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res & \res \\
+A5 ($p_{\mathrm{synth}}=0$) & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res & \res \\
+A7 & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{A4 artifact head by severity: IoU per type.}
+\label{tab:s-arthead-severity}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Type & Sev.\ 1 & Sev.\ 2 & Sev.\ 3 & Sev.\ 4 \\
+\midrule
+Hair & \res & \res & \res & \res \\
+Ruler & \res & \res & \res & \res \\
+Marker ink & \res & \res & \res & \res \\
+Dark corner & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\TBD{Agreement of the head with the real test-set labels: image-level AUROC of the maximum of each predicted map against the labels of Section~\ref{sec:s-strata} (no training signal of this kind was used).}
+
+% =================================================================================================
+\section{Sensitivity Analyses}\label{sec:s-sensitivity}
+\begin{table}[H]
+\centering
+\caption{Robustness of the primary comparison (A4 $-$ A1, Dice, any-artifact and artifact-free strata) to analysis choices.}
+\label{tab:s-sensitivity}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{Any artifact} & \multicolumn{2}{c}{Artifact-free} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Analysis & $\Delta$Dice [95\% CI] & $p$ & $\Delta$Dice [95\% CI] & $p$ \\
+\midrule
+Primary (top-1, seed-averaged, canvas) & \res & \res & \res & \res \\
+Union rule, confidence $\ge0.25$ & \res & \res & \res & \res \\
+Seed 0 only & \res & \res & \res & \res \\
+Seed 1 only & \res & \res & \res & \res \\
+Seed 2 only & \res & \res & \res & \res \\
+Bootstrap seeds 1--5 (range of interval limits) & \res & -- & \res & -- \\
+Labels of annotator 1 only (common subset) & \res & \res & \res & \res \\
+Labels of annotator 2 only (common subset) & \res & \res & \res & \res \\
+\TBD{$\lambda=0.5$ / $2$ (if run)} & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\pairedcaveat{A1}
+\end{table}
+
+% =================================================================================================
+\section{Computational Characteristics}\label{sec:s-cost}
+Parameters and GFLOPs are measured on the fused models (convolution and batch normalization merged) for one $640\times640$ input with one class. Latency: \texttt{scripts/benchmark.py}, forward pass only, batch 1, FP16, 30 warm-up and 200 timed runs, on \TBD{GPU, driver, CUDA, PyTorch}.
+
+\begin{table}[H]
+\centering
+\caption{Cost per model. Parameters in millions; GFLOPs at $640\times640$.}
+\label{tab:s-cost}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Model & Params (M) & GFLOPs & Latency (ms) & FPS \\
+\midrule
+YOLO26n-seg (stock) & 2.689 & 8.96 & \res & \res \\
+A0: + P2 & 2.735 & 11.20 & \res & \res \\
+A1: + P2 + CBAM & 2.738 & 11.21 & \res & \res \\
+A2: A1 + artifact head & 2.759 & 12.26 & \res & \res \\
+\textbf{A4: ArtiGate-YOLO} & 2.759 & 12.26 & \res & \res \\
+A3, A5: as A4 & 2.759 & 12.26 & \res & \res \\
+A7: AGA after B2 only & 2.759 & 12.26 & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Compared with A1, the artifact head and the two AGA blocks add 0.021~M parameters, or 0.8\% of A4, and 1.05~GFLOPs. Nearly all of it is the head, which runs at stride~4 on a $160\times160$ grid: A2, which adds only the head to A1, already has the cost of A4, and replacing CBAM by AGA adds one input channel to each $7\times7$ convolution and the scalar $\beta$.
+
+% =================================================================================================
+\section{Seed-Level Results}\label{sec:s-seeds}
+\begin{table}[H]
+\centering
+\caption{Per-seed results on the ISIC 2018 test set: Dice (mean over images), best epoch, and the learned $\beta_2/\beta_3$. Mean $\pm$ SD of the three per-seed means in the last column.}
+\label{tab:s-seeds}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccccc}
+\toprule
+& \multicolumn{2}{c}{Seed 0} & \multicolumn{2}{c}{Seed 1} & \multicolumn{2}{c}{Seed 2} & & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Row & Dice & Epoch & Dice & Epoch & Dice & Epoch & $\beta_2/\beta_3$ (s0, s1, s2) & Dice mean $\pm$ SD \\
+\midrule
+A0 & \res & \res & \res & \res & \res & \res & -- & \res \\
+A1 & \res & \res & \res & \res & \res & \res & -- & \res \\
+A1s & \res & \res & \res & \res & \res & \res & -- & \res \\
+A2 & \res & \res & \res & \res & \res & \res & -- & \res \\
+A3 & \res & \res & \res & \res & \res & \res & \res & \res \\
+\textbf{A4} & \res & \res & \res & \res & \res & \res & \res & \res \\
+A5 & \res & \res & \res & \res & \res & \res & \res & \res \\
+A7 & \res & \res & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =================================================================================================
+\section{Published Results of Related Methods}\label{sec:s-published}
+The values below are copied from the cited papers and are \emph{not} comparable with ours: splits, input sizes, preprocessing, mask rules and metric implementations differ. They are listed only to place our numbers. \TBD{Fill only with values printed in the papers, with the table or page they come from.}
+\begin{table}[H]
+\centering
+\caption{Published ISIC 2018 segmentation results of related methods (as reported).}
+\label{tab:s-published}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}Xcccc@{}}
+\toprule
+Method & Split / input as reported & Dice & IoU & Params (M) & Source \\
+\midrule
+FSSM-ResNet~\cite{raikhankyzy2026fssm} & \TBD{} & \res & \res & \res & \TBD{table} \\
+Artifact-aware segmenter~\cite{gong2026artifactaware} & \TBD{} & \res & \res & \res & \TBD{table} \\
+Dual-resolution network~\cite{singh2025dualresolution} & \TBD{} & \res & \res & \res & \TBD{table} \\
+MALUNet~\cite{ruan2022malunet} & \TBD{} & \res & \res & \res & \TBD{table} \\
+EGE-UNet~\cite{ruan2023egeunet} & \TBD{} & \res & \res & \res & \TBD{table} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =================================================================================================
+\section{Implementation Details}\label{sec:s-impl}
+\subsection{Software and hardware}
+Ultralytics 8.4.13, PyTorch \TBD{version}, CUDA \TBD{version}, Python \TBD{version}, on \TBD{GPU}. Code: \TBD{repository URL and commit}. Every run writes its training settings, seed, package versions and GPU, the git commit, SHA-256 hashes of the model configuration and the pretrained weights, and the weight-transfer report to \texttt{provenance.json}.
+
+\subsection{Training schedule}
+\begin{table}[H]
+\centering
+\caption{Training settings shared by all YOLO models (\texttt{configs/train/default.yaml}); unlisted settings keep the Ultralytics 8.4.13 defaults.}
+\label{tab:s-hyp}
+\small
+\begin{tabular}{ll@{\qquad}ll}
+\toprule
+Setting & Value & Setting & Value \\
+\midrule
+Epochs / patience & 200 / 100 & Mosaic (off for last) & 1.0 (10 epochs) \\
+Batch / input size & 16 / 640 & Mix-up / copy-paste & 0.1 / 0.1 \\
+Optimizer & auto: AdamW, lr 0.002$^{\dagger}$ & Rotation & $\pm180^\circ$ \\
+LR schedule & cosine, 3 warm-up epochs & Scale & $\pm0.5$ \\
+Mask ratio & 2 & Flips (up-down / left-right) & 0.5 / 0.5 \\
+Deterministic & yes & Seeds & 0, 1, 2 \\
+Artifact loss weight $\lambda$ & 1 (A2, A4, A5, A7); 0 (A3) & $p_{\mathrm{synth}}$ & 0.7 (A1s--A4, A7); 0 (A5) \\
+Artifact map detached & yes; no in A3 & & \\
+\bottomrule
+\end{tabular}
+\par\smallskip{\footnotesize $^{\dagger}$Chosen by the Ultralytics 8.4.13 rule for ISIC 2018 (8,200 iterations of the nominal batch of 64); above 10,000 iterations the rule selects MuSGD with lr 0.01, which applies to the two-view model and to HAM10000 training. \TBD{Fix the optimizer for all rows or report the exception.}\par}
+\end{table}
+
+\subsection{Architecture and weight transfer}
+\begin{table}[H]
+\centering
+\caption{Backbone of A4 at scale n (\texttt{configs/models/yolo26n-seg-p2-artigate.yaml}). Layers 3, 4 and 7 are inserted; all other layers are those of YOLO26n-seg, and the neck adds the P2 level. Channels after width scaling.}
+\label{tab:s-arch}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}cl>{\raggedright\arraybackslash}Xl@{}}
+\toprule
+Layer & From & Module & Output \\
+\midrule
+0 & input & Conv $3\times3$, stride 2 & 16, stride 2 \\
+1 & 0 & Conv $3\times3$, stride 2 & 32, stride 4 \\
+2 & 1 & C3k2 (B2) & 64, stride 4 \\
+3 & 2 & ArtifactHead ($c_h=32$, $K=4$) & 4 logits, stride 4 \\
+4 & 2, 3 & AGA ($7\times7$, full mode, $\bar{A}$ detached except in A3) & 64, stride 4 \\
+5 & 4 & Conv $3\times3$, stride 2 & 64, stride 8 \\
+6 & 5 & C3k2 (B3) & 128, stride 8 \\
+7 & 6, 3 & AGA & 128, stride 8 \\
+8--13 & & Conv, C3k2, Conv, C3k2, SPPF, C2PSA & 128--256, strides 16--32 \\
+14--31 & & PAN neck with P2 level & P2 32, P3 64, P4 128, P5 256 \\
+32 & 22, 25, 28, 31 & Segment26 with P2 input (32 mask coefficients, prototype branch of 64 channels) & boxes P2--P5, prototypes stride 4 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent Channel counts were read from a forward pass of the built model. AGA and the artifact head take their input channels from the model parser: Ultralytics' \texttt{parse\_model} is extended in memory with one branch for these modules (\texttt{artigate.modules.register\_modules}), so the configuration files list only their own arguments. Weights of the COCO-pretrained YOLO26n-seg are transferred through an explicit map from the 17 stock backbone and top-down neck layers (0--16) to the matching layers of each configuration, skipping inserted layers; every mapped pair must agree in module type, repeats and arguments, and tensors are copied only if their shapes match. For A4, 348 tensors are transferred. The layers after the top-down path (the P2 level, the bottom-up path and the segmentation head) are initialized randomly. Resuming a run loads the full checkpoint of the same architecture.
+
+\subsection{Determinism}
+The channel-attention max pooling of CBAM and AGA is computed with \texttt{amax} over the spatial dimensions instead of adaptive max pooling, whose CUDA backward pass is not deterministic; the forward outputs of the two agree to within $10^{-6}$ (unit test). Training runs with \texttt{deterministic=True}. Synthetic artifacts draw their seed from NumPy's global random state, which Ultralytics seeds in every dataloader worker, so they are as reproducible as the other augmentations. \TBD{Confirm by repeating one short run with the same seed.}
+
+\subsection{Leakage checks}
+Before scoring, each test set is compared with the training data (\texttt{scripts/check\_leakage.py}): shared ISIC identifiers, and near-duplicate candidates from a 64-bit difference hash (Hamming distance $\le4$) confirmed by a correlation $\ge0.95$ of $64\times64$ grey thumbnails. \TBD{Pairs found per test set and how they were handled.}
+
+\begin{table}[H]
+\centering
+\caption{Leakage check results.}
+\label{tab:s-leakage}
+\small
+\begin{tabular}{lccc}
+\toprule
+Test set vs.\ ISIC 2018 train & Shared IDs & Likely duplicates & Removed \\
+\midrule
+ISIC 2018 test & \res & \res & \res \\
+HAM10000 test (ours) & \res & \res & \res \\
+PH2 & \res & \res & \res \\
+\TBD{DDI} & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Non-YOLO baselines}
+\TBD{For U-Net, MALUNet, EGE-UNet and nnU-Net 2D: code source and commit, input size, augmentation, epochs, optimizer, and how their outputs are mapped to the $640\times640$ canvas for scoring with the same metric code.}
+
+% =================================================================================================
+\section{Dataset Inventory and Split Manifests}\label{sec:s-data}
+\begin{table}[H]
+\centering
+\caption{Data used, with licences and the files that fix each split (released with the code).}
+\label{tab:s-data}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Dataset & Images used & Licence & Manifest \\
+\midrule
+ISIC 2018 Task 1~\cite{codella2019isic2018} & 2,594 / 100 / 1,000 (official) & \TBD{CC BY-NC 4.0, verify} & \TBD{data/splits/...} \\
+HAM10000~\cite{tschandl2018ham10000} & \TBD{x / y / z, grouped by lesion\_id} & \TBD{CC BY-NC 4.0, verify} & \TBD{} \\
+PH2~\cite{mendonca2013ph2} & 200 (test) & \TBD{terms of use} & \TBD{} \\
+Artifact labels, ISIC 2018 train~\cite{bissoto2020debiasing} & 2,594 & \TBD{} & \nolinkurl{data/splits/isic2018_train_flags.csv} \\
+Artifact labels, ISIC 2018 test (ours) & 1,000 & \TBD{to be released} & \TBD{\nolinkurl{data/splits/isic2018_test_artifacts.csv}} \\
+\TBD{DDI + FEDD}~\cite{daneshjou2022ddi,carrion2023fedd} & \TBD{} & \TBD{research use agreement} & \TBD{} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =================================================================================================
+\section{Relation to the Conference Version}\label{sec:s-conference}
+This work extends our conference paper~\cite{iceeis2026own}, which introduced the YOLO26n-seg model with a P2 level and CBAM (row A1) and compared input views with and without DullRazor preprocessing. The present manuscript adds the artifact head, AGA, the partial-label training targets, the artifact-stratified evaluation, the external test sets and the image-level statistical protocol. During this work we found that the conference code loaded the pretrained weights before Ultralytics rebuilt the model from its configuration, so the conference model was trained from random initialization; all A1 numbers in this manuscript come from new runs with the corrected transfer and therefore differ from the conference paper. \TBD{Text overlap with the conference paper (similarity report) and the journal's policy on extended conference papers.}
+
+\clearpage
+\begingroup
+\small
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+\endgroup
+
+\end{document}

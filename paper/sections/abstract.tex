@@ -1,0 +1,9 @@
+% IEEE Access: one paragraph, about 150-250 words, no citations. Rewrite the result sentences once
+% the numbers exist; keep only claims the results support.
+\begin{abstract}
+Hair, ruler markings, surgical ink and dark vignette corners are common in dermoscopic images and are a known source of segmentation errors and shortcut learning. Existing remedies either remove artifacts before segmentation, estimate them with hand-set rules, or learn an artifact map without supervision. We propose ArtiGate-YOLO, a real-time instance segmentation model that learns where artifacts are and uses that knowledge inside the network. A lightweight artifact head on the stride-4 backbone features predicts four artifact maps (hair, ruler, marker ink, dark corner). It is supervised with pixel-exact masks of procedurally composited artifacts and with partial labels, so no artifact is annotated by hand at the pixel level. The resulting map drives Artifact-Gated Attention (AGA), a drop-in replacement for CBAM whose spatial attention receives the artifact map and whose output is attenuated where artifacts are predicted; at initialization AGA is identical to CBAM. The model adds 0.021~M parameters and 1.05~GFLOPs at $640\times640$ to a YOLO26n-seg baseline with a P2 head and CBAM and needs a single RGB image at inference. On ISIC~2018 Task~1, ArtiGate-YOLO reaches a Dice score of \TBD{x.xxx} against \TBD{x.xxx} for the same network with CBAM, with \TBD{the largest gains on images that contain hair or rulers} and \TBD{no loss on artifact-free images}. Under synthetic artifacts of increasing severity, \TBD{its Dice decreases by x.x points against y.y}, and on the external PH2 set it reaches \TBD{x.xxx}. Code, trained models and the artifact annotations of the test set will be released.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Dermoscopy, skin lesion segmentation, imaging artifacts, attention, YOLO, robustness, synthetic data, partial labels.
+\end{IEEEkeywords}
