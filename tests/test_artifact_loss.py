@@ -55,3 +55,25 @@ def test_codes_after_mixing_are_read_conservatively():
     target, weight = art_targets(values.view(1, 1, 1, 5), (1, 5))
     assert target.flatten().tolist() == [0, 0, 0, 0, 1]
     assert weight.flatten().tolist() == [1, 0, 0, 0, 1]
+
+
+def test_art_loss_without_targets_stays_finite_in_fp16_validation():
+    from artigate.artifact_loss import ArtiGateLoss
+    from artigate.modules import ArtifactHead
+
+    head = ArtifactHead(16, k=4, hidden=8)
+    model = torch.nn.Sequential(head)
+    loss = ArtiGateLoss(model, lambda preds, batch: (torch.zeros(3), torch.zeros(3)))
+    batch = {"img": torch.zeros(16, 3, 8, 8)}  # validation batch: no "art" key
+    # fp16 logits like the validator's half model: their plain sum overflows to -inf
+    head.last_logits = torch.full((16, 4, 160, 160), -4.6, dtype=torch.float16)
+    assert torch.isinf(head.last_logits.sum())
+    with torch.no_grad():
+        total, items = loss(None, batch)
+    assert torch.isfinite(total).all() and items[-1] == 0
+    # training with lambda 0: still finite, head stays in the graph with zero gradient
+    logits = torch.full((16, 4, 160, 160), -4.6, dtype=torch.float16, requires_grad=True)
+    head.last_logits = logits
+    total, items = loss(None, batch)
+    total.sum().backward()
+    assert torch.isfinite(total).all() and items[-1] == 0 and logits.grad.abs().sum() == 0

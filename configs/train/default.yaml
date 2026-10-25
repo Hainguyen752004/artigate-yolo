@@ -1,12 +1,20 @@
 # Shared schedule for every Paper 1 model (A0-A7 and the YOLO baselines).
-# Values come from the ICEEIS final run (SkinSeg_YOLO26_P2_CBAM_640/args.yaml);
+# Values come from the ICEEIS final run (SkinSeg_YOLO26_P2_CBAM_640/args.yaml), except the optimizer;
 # anything not listed keeps the Ultralytics 8.4.13 default.
 epochs: 200
 patience: 100
 batch: 16
 imgsz: 640
 workers: 8
-optimizer: auto
+# Optimizer fixed explicitly (was "auto"). Ultralytics' auto rule picks AdamW (lr0 0.002 for nc = 1,
+# momentum 0.9, no bias warm-up) when ceil(train images / 64) * epochs <= 10,000 and MuSGD (lr 0.01)
+# above that, so one-view ISIC 2018 would get AdamW while two-view or HAM10000 training would get
+# MuSGD. The ICEEIS final run used MuSGD lr 0.01. These four lines reproduce the AdamW choice for
+# every row.
+optimizer: AdamW
+lr0: 0.002
+momentum: 0.9
+warmup_bias_lr: 0.0
 cos_lr: true
 warmup_epochs: 3.0
 close_mosaic: 10

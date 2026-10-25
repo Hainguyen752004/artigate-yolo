@@ -75,7 +75,10 @@ class ArtiGateLoss:
         if logits is None:
             loss = total.new_zeros(())
         elif art is None or self.weight == 0:
-            loss = logits.sum() * 0.0  # keeps the head in the graph (DDP) without training it
+            # Keep the head in the graph (DDP) without training it. Not in the validator: it runs the
+            # model in fp16 without autocast, where a sum of ~10^5 logits near -4.6 overflows to -inf
+            # and -inf * 0 is nan (val/art_loss was nan). Reduce in float32 when a graph is needed.
+            loss = logits.float().mean() * 0.0 if torch.is_grad_enabled() else total.new_zeros(())
         else:
             loss = artifact_loss(logits, art) * self.weight
         batch_size = batch["img"].shape[0]

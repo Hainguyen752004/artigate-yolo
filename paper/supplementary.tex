@@ -542,7 +542,7 @@ Setting & Value & Setting & Value \\
 \midrule
 Epochs / patience & 200 / 100 & Mosaic (off for last) & 1.0 (10 epochs) \\
 Batch / input size & 16 / 640 & Mix-up / copy-paste & 0.1 / 0.1 \\
-Optimizer & auto: AdamW, lr 0.002$^{\dagger}$ & Rotation & $\pm180^\circ$ \\
+Optimizer & AdamW, lr 0.002, $\beta_1$ 0.9$^{\dagger}$ & Rotation & $\pm180^\circ$ \\
 LR schedule & cosine, 3 warm-up epochs & Scale & $\pm0.5$ \\
 Mask ratio & 2 & Flips (up-down / left-right) & 0.5 / 0.5 \\
 Deterministic & yes & Seeds & 0, 1, 2 \\
@@ -550,7 +550,7 @@ Artifact loss weight $\lambda$ & 1 (A2, A4, A5, A7); 0 (A3) & $p_{\mathrm{synth}
 Artifact map detached & yes; no in A3 & & \\
 \bottomrule
 \end{tabular}
-\par\smallskip{\footnotesize $^{\dagger}$Chosen by the Ultralytics 8.4.13 rule for ISIC 2018 (8,200 iterations of the nominal batch of 64); above 10,000 iterations the rule selects MuSGD with lr 0.01, which applies to the two-view model and to HAM10000 training. \TBD{Fix the optimizer for all rows or report the exception.}\par}
+\par\smallskip{\footnotesize $^{\dagger}$Fixed for every row, with no bias warm-up. This is what the Ultralytics 8.4.13 automatic rule chooses for one-view ISIC 2018 training (8,200 iterations of the nominal batch of 64); above 10,000 iterations the rule chooses MuSGD with lr 0.01, which the final conference run used and which two-view and HAM10000 training would get.\par}
 \end{table}
 
 \subsection{Architecture and weight transfer}
@@ -630,7 +630,7 @@ Artifact labels, ISIC 2018 test (ours) & 1,000 & \TBD{to be released} & \TBD{\no
 
 % =================================================================================================
 \section{Relation to the Conference Version}\label{sec:s-conference}
-This work extends our conference paper~\cite{iceeis2026own}, which introduced the YOLO26n-seg model with a P2 level and CBAM (row A1) and compared input views with and without DullRazor preprocessing. The present manuscript adds the artifact head, AGA, the partial-label training targets, the artifact-stratified evaluation, the external test sets and the image-level statistical protocol. During this work we found that the conference code loaded the pretrained weights before Ultralytics rebuilt the model from its configuration, so the conference model was trained from random initialization; all A1 numbers in this manuscript come from new runs with the corrected transfer and therefore differ from the conference paper. \TBD{Text overlap with the conference paper (similarity report) and the journal's policy on extended conference papers.}
+This work extends our conference paper~\cite{iceeis2026own}, which introduced the YOLO26n-seg model with a P2 level and CBAM (row A1) and compared input views with and without DullRazor preprocessing. The present manuscript adds the artifact head, AGA, the partial-label training targets, the artifact-stratified evaluation, the external test sets and the image-level statistical protocol. During this work we found that the conference code loaded the pretrained weights before Ultralytics rebuilt the model from its configuration, so the conference model was trained from random initialization; all A1 numbers in this manuscript come from new runs with the corrected transfer and with AdamW instead of the conference run's MuSGD (Table~\ref{tab:s-hyp}), and therefore differ from the conference paper. \TBD{Text overlap with the conference paper (similarity report) and the journal's policy on extended conference papers.}
 
 \clearpage
 \begingroup
