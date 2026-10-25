@@ -97,13 +97,13 @@ Table~\ref{tab:external} applies the models trained on ISIC 2018 to the external
 
 \begin{table}[!t]
 \centering
-\caption{External test sets (models trained on ISIC 2018, no retraining). Dice / HD95 (px).}
+\caption{External test sets (models trained on ISIC 2018, no retraining). Dice / HD95 (px). $^{\ast}$One image per lesion.}
 \label{tab:external}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lccc}
 \toprule
-Model & PH2 & HAM10000 test & \TBD{DDI (FEDD)} \\
+Model & PH2 & HAM10000$^{\ast}$ & DDI (FEDD) \\
 \midrule
 A1 & \res & \res & \res \\
 A1s & \res & \res & \res \\
@@ -114,7 +114,7 @@ Best external baseline & \res & \res & \res \\
 \end{table}
 
 \subsection{Artifact Maps}
-Table~\ref{tab:arthead} evaluates the artifact head itself and Fig.~\ref{fig:qualitative} shows its maps next to the lesion predictions. \TBD{Report which types the head finds reliably, how often it fires on clean images, and how the supervised maps (A4) differ from the unsupervised ones (A3).}
+Table~\ref{tab:arthead} evaluates the artifact head on held-out synthetic artifacts and Table~\ref{tab:arthead_real} on real artifacts it was never trained on; Fig.~\ref{fig:qualitative} shows its maps next to the lesion predictions. \TBD{Report which types the head finds reliably, how often it fires on clean images, and how the supervised maps (A4) differ from the unsupervised ones (A3).}
 
 \begin{table}[!t]
 \centering
@@ -130,6 +130,24 @@ A2 (auxiliary) & \res & \res & \res & \res & \res \\
 A3 (unsupervised) & \res & \res & \res & \res & \res \\
 \textbf{A4} & \res & \res & \res & \res & \res \\
 A7 & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!t]
+\centering
+\caption{Artifact head on real artifacts (never used for training): IoU / average precision of the marker and ruler maps against the FEDD masks on 333 DDI clinical images, and of the hair map against real hair masks.}
+\label{tab:arthead_real}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lccc}
+\toprule
+Row & Marker (FEDD) & Ruler (FEDD) & Hair~\cite{hossain2023hairmask} \\
+\midrule
+A2 (auxiliary) & \res~/~\res & \res~/~\res & \res~/~\res \\
+A3 (unsupervised) & \res~/~\res & \res~/~\res & \res~/~\res \\
+\textbf{A4} & \res~/~\res & \res~/~\res & \res~/~\res \\
+A7 & \res~/~\res & \res~/~\res & \res~/~\res \\
 \bottomrule
 \end{tabular}
 \end{table}

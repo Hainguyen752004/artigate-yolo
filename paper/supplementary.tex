@@ -422,6 +422,31 @@ Dark corner & \res & \res & \res & \res \\
 \end{tabular}
 \end{table}
 
+\paragraph{Real artifacts}
+Marker and ruler maps are compared with the FEDD masks~\cite{carrion2023fedd} on the 333 DDI images that have them, and the hair map with real hair masks~\cite{hossain2023hairmask} \TBD{on the images that do not overlap with ISIC 2018 training or test images (check with \texttt{scripts/check\_leakage.py})}. None of these masks is used for training or model selection. The images are letterboxed to $640\times640$ like all inputs; each predicted probability map is upsampled to the canvas and scored inside the image content area only. FEDD has no hair or dark-corner class, so only the marker and ruler maps are scored there; FEDD's marker class is compared with our marker-ink map.
+
+\begin{table}[H]
+\centering
+\caption{Artifact head on real artifacts: IoU, Dice (threshold 0.5) and pixel-level average precision (AP). Mean over three seeds.}
+\label{tab:s-arthead-real}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lccccccccc}
+\toprule
+& \multicolumn{3}{c}{Marker (FEDD, DDI)} & \multicolumn{3}{c}{Ruler (FEDD, DDI)} & \multicolumn{3}{c}{Hair~\cite{hossain2023hairmask}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+Row & IoU & Dice & AP & IoU & Dice & AP & IoU & Dice & AP \\
+\midrule
+A2 & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A3 & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\textbf{A4} & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A7 & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\midrule
+Images with the artifact ($n$) & \multicolumn{3}{c}{\res} & \multicolumn{3}{c}{\res} & \multicolumn{3}{c}{\res} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \noindent\TBD{Agreement of the head with the real test-set labels: image-level AUROC of the maximum of each predicted map against the labels of Section~\ref{sec:s-strata} (no training signal of this kind was used).}
 
 % =================================================================================================
@@ -597,9 +622,9 @@ Before scoring, each test set is compared with the training data (\texttt{script
 Test set vs.\ ISIC 2018 train & Shared IDs & Likely duplicates & Removed \\
 \midrule
 ISIC 2018 test & \res & \res & \res \\
-HAM10000 test (ours) & \res & \res & \res \\
+HAM10000 (one image per lesion) & \res & \res & \res \\
 PH2 & \res & \res & \res \\
-\TBD{DDI} & \res & \res & \res \\
+DDI (FEDD subset) & \res & \res & \res \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -619,11 +644,11 @@ PH2 & \res & \res & \res \\
 Dataset & Images used & Licence & Manifest \\
 \midrule
 ISIC 2018 Task 1~\cite{codella2019isic2018} & 2,594 / 100 / 1,000 (official) & \TBD{CC BY-NC 4.0, verify} & \TBD{data/splits/...} \\
-HAM10000~\cite{tschandl2018ham10000} & \TBD{x / y / z, grouped by lesion\_id} & \TBD{CC BY-NC 4.0, verify} & \TBD{} \\
+HAM10000~\cite{tschandl2018ham10000} & \TBD{7,470}, one image per lesion (lowest image identifier); external test & \TBD{CC BY-NC 4.0, verify} & \TBD{} \\
 PH2~\cite{mendonca2013ph2} & 200 (test) & \TBD{terms of use} & \TBD{} \\
 Artifact labels, ISIC 2018 train~\cite{bissoto2020debiasing} & 2,594 & \TBD{} & \nolinkurl{data/splits/isic2018_train_flags.csv} \\
 Artifact labels, ISIC 2018 test (ours) & 1,000 & \TBD{to be released} & \TBD{\nolinkurl{data/splits/isic2018_test_artifacts.csv}} \\
-\TBD{DDI + FEDD}~\cite{daneshjou2022ddi,carrion2023fedd} & \TBD{} & \TBD{research use agreement} & \TBD{} \\
+DDI with FEDD masks~\cite{daneshjou2022ddi,carrion2023fedd} & 333 of 656 (those with FEDD masks); external test & \TBD{Stanford AIMI terms of use; FEDD repository licence} & \TBD{} \\
 \bottomrule
 \end{tabularx}
 \end{table}

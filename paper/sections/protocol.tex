@@ -1,22 +1,22 @@
-All analyses below, including the mask rule and the non-inferiority margin, were fixed on 25 October 2026, before any ISIC 2018 test image was scored. Development runs were evaluated on validation data only, except one check of the evaluation pipeline on a subset of the HAM10000 test partition, which was not used to choose models or settings. Code, configuration files and data split manifests are in the project repository~\TBD{URL}.
+All analyses below, including the mask rule and the non-inferiority margin, were fixed on 25 October 2026, before any ISIC 2018 test image was scored. Development runs were evaluated on validation data only, except one check of the evaluation pipeline on a subset of HAM10000, which was not used to choose models or settings. Code, configuration files and data split manifests are in the project repository~\TBD{URL}.
 
 \subsection{Datasets}
-Table~\ref{tab:datasets} lists the data. ISIC 2018 Task~1~\cite{codella2019isic2018} is the primary benchmark with its official training, validation and test partitions. HAM10000~\cite{tschandl2018ham10000} with the lesion masks distributed alongside it is used as a second benchmark; because several images show the same lesion, it is split by \texttt{lesion\_id}, so that no lesion appears in two partitions. PH2~\cite{mendonca2013ph2} serves as external test data. \TBD{DDI images with the FEDD marker and ruler masks~\cite{daneshjou2022ddi,carrion2023fedd} are added as a clinical, multi-skin-tone test set if access is granted.} Before scoring, every test set is checked against the training data for repeated ISIC identifiers and for near-duplicate images (difference hash with thumbnail correlation, Supplementary Section~S13); \TBD{n} pairs were found and removed from the test side.
+Table~\ref{tab:datasets} lists the data. ISIC 2018 Task~1~\cite{codella2019isic2018} is the only training data and the primary benchmark, with its official training, validation and test partitions. The other sets serve as external test data only: the models trained on ISIC 2018 are applied to them without retraining. HAM10000~\cite{tschandl2018ham10000}, with the lesion masks distributed alongside it, contains several images of many lesions; to keep the test units independent, we score one image per lesion, the one with the lowest image identifier. PH2~\cite{mendonca2013ph2} contributes 200 dermoscopic images. DDI~\cite{daneshjou2022ddi} contributes clinical photographs across skin tones; the public FEDD release~\cite{carrion2023fedd} provides masks of the lesion, marker ink and rulers for 333 of its 656 images (the FEDD paper reports 378 annotated images; we use the masks that are released). Before scoring, every test set is checked against the training data for repeated ISIC identifiers and for near-duplicate images (difference hash with thumbnail correlation, Supplementary Section~S13); \TBD{n} pairs were found and removed from the test side.
 
 \begin{table}[!t]
 \centering
-\caption{Datasets. Image counts refer to the released data; the HAM10000 split is ours and grouped by lesion.}
+\caption{Datasets. Only ISIC 2018 is used for training; all other sets are external test sets.}
 \label{tab:datasets}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \begin{tabularx}{\columnwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.27\columnwidth}@{}}
 \toprule
-Dataset & Images (train / val / test) & Use \\
+Dataset & Images used & Use \\
 \midrule
-ISIC 2018 Task 1~\cite{codella2019isic2018} & 2,594 / 100 / 1,000 & Primary benchmark \\
-HAM10000~\cite{tschandl2018ham10000} & 10,015 images of 7,470 lesions; split \TBD{x / y / z} by lesion & Second benchmark \\
-PH2~\cite{mendonca2013ph2} & 200 (test only) & External test \\
-\TBD{DDI + FEDD masks}~\cite{daneshjou2022ddi,carrion2023fedd} & \TBD{n} (test only) & \TBD{Clinical, skin tones} \\
+ISIC 2018 Task 1~\cite{codella2019isic2018} & 2,594 / 100 / 1,000 (train / val / test) & Training, primary benchmark \\
+HAM10000~\cite{tschandl2018ham10000} & \TBD{7,470}, one per lesion (10,015 released) & External test \\
+PH2~\cite{mendonca2013ph2} & 200 & External test \\
+DDI with FEDD masks~\cite{daneshjou2022ddi,carrion2023fedd} & 333 with masks (656 released) & External test; real marker and ruler masks \\
 \midrule
 Artifact labels, ISIC 2018 train~\cite{bissoto2020debiasing} & 2,594, image level & Absent pixels for training \\
 Artifact labels, ISIC 2018 test (ours) & 1,000, image level & Strata for evaluation \\
@@ -70,7 +70,7 @@ Predicted instances are collapsed into one lesion mask per image by keeping the 
 Robustness is measured in three ways: (i) the metrics on the artifact strata of the ISIC 2018 test set, which involve real artifacts only; (ii) a severity sweep in which the test images receive synthetic artifacts of one type, or a mix of types, at severities 1 to 4, drawn with fixed per-image seeds rather than the random seeds of training; and (iii) the external test sets. Because the sweep uses the generator seen in training, it can favour models trained with that generator; conclusions about robustness rest on (i) and (iii).
 
 \paragraph{Artifact head}
-The artifact maps are evaluated on the validation images with held-out synthetic artifacts: IoU and Dice per type against the exact masks, and the fraction of pixels predicted as artifact on the unmodified images (mean over the four types). Real artifacts already present in an image count as false positives in this test, so it understates precision and is used to compare models only.
+The artifact maps are evaluated on the validation images with held-out synthetic artifacts: IoU and Dice per type against the exact masks, and the fraction of pixels predicted as artifact on the unmodified images (mean over the four types). Real artifacts already present in an image count as false positives in this test, so it understates precision and is used to compare models only. On real artifacts, the marker and ruler maps are compared with the FEDD masks on the 333 DDI images (IoU and Dice at a threshold of 0.5, and pixel-level average precision of the probability maps)\TBD{, and the hair map with the hair masks of~\cite{hossain2023hairmask} on images that are in neither the ISIC 2018 training nor its test set}. The DDI images are clinical photographs rather than dermoscopic images, so this test measures transfer as well as detection. No real artifact mask is used for training.
 
 \paragraph{Computational cost}
 Parameters and GFLOPs are computed for the fused models at $640\times640$. Latency is the mean forward time over 200 runs after 30 warm-up runs at batch size 1 in FP16 on \TBD{GPU}, without mask decoding.
