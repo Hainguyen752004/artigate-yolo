@@ -46,8 +46,8 @@ tocloft).
 
 - [ ] Fill every `\res` and `\TBD` from `runs/` with the scripts below and rewrite each results
       paragraph around what the numbers show, including the comparisons that A4 loses.
-- [ ] Decide and record **before scoring the test set**: the primary mask rule (top-1 or union) and
-      the non-inferiority margin delta in criterion (ii) (draft: 0.5 Dice points).
+- [x] Decided 25/10/2026, before scoring any ISIC 2018 test image: primary mask rule top-1
+      (union >= 0.25 as sensitivity analysis), non-inferiority margin delta = 0.5 Dice points.
 - [ ] Check every reference marked `% VERIFY` against the publisher or arXiv page (authors, title,
       venue, pages, DOI) and fill the `% TODO` entry for the ICEEIS paper (`iceeis2026own`).
 - [ ] Regenerate Fig. 2 on an ISIC 2018 *training* image:
