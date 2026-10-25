@@ -1,7 +1,7 @@
 \begin{figure*}[!t]
 \centering
-\input{figures/overview}
-\caption{ArtiGate-YOLO. Top: the artifact head reads the stride-4 backbone feature B2 and predicts four artifact maps; their pixel-wise maximum $\bar{A}$ is passed to the two AGA blocks that replace CBAM after B2 and B3. The rest is YOLO26n-seg with a P2 detection level; mask prototypes are built from P3--P5 at stride~4. Bottom: the AGA block. Its channel attention is the CBAM channel attention; the spatial attention receives $\bar{A}$ as a third input and the output is multiplied by $\max(0,1-\beta\bar{A})$. The weights on $\bar{A}$ and $\beta$ start at zero, so AGA equals CBAM at initialization. Dashed: artifact map; by default it is detached, so the segmentation loss does not train the artifact head.}
+\includegraphics[width=\textwidth]{figures/architecture.pdf}
+\caption{ArtiGate-YOLO. Top: YOLO26n-seg with a P2 level. The artifact head reads the stride-4 backbone feature B2 and predicts one map per artifact type; their pixel-wise maximum $\bar{A}$ (dashed) feeds the two AGA blocks that replace CBAM after B2 and B3, and is detached, so the segmentation loss does not train the head. The neck passes P2--P5 to the Segment26 heads; mask prototypes are built from N3--N5 at stride~4. Middle: the AGA block. Its channel attention is that of CBAM; the spatial attention receives $\bar{A}'$ as a third channel and its output is multiplied by $\max(0,1-\beta\bar{A}')$. Weights on $\bar{A}'$ and $\beta$ start at zero, so AGA equals CBAM at initialization. Bottom: the artifact head and its partial-label targets. Orange marks what ArtiGate-YOLO adds. \TBD{Thumbnails are an illustration on a drawn lesion with procedurally drawn artifacts; regenerate on an ISIC 2018 training image with scripts/figure\_architecture.py.}}
 \label{fig:overview}
 \end{figure*}
 

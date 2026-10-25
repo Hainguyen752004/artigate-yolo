@@ -13,7 +13,7 @@ branch, and the parameter and GFLOP counts measured on the fused models (640 x 6
 | `supplementary.tex` | Supplementary Material (article class; sections, tables, figures and equations numbered S1, S2, ...) |
 | `macros.tex` | `\TBD`, `\res`, `\placeholderfig` and other shared macros (both documents) |
 | `refs.bib` | References with a check status above each entry |
-| `figures/overview.tex` | Fig. 1, TikZ (architecture and AGA block) |
+| `figures/architecture.pdf` (`.svg`, `.png`) | Fig. 1, from `scripts/figure_architecture.py` (vector PDF, fonts embedded as TrueType) |
 | `figures/synthetic_artifacts.jpg` | Fig. 2, from `scripts/figure_synthetic_artifacts.py` (placeholder on a drawn lesion) |
 
 ## Build
@@ -25,7 +25,7 @@ pdflatex supplementary && bibtex supplementary && pdflatex supplementary && pdfl
 ```
 
 Overleaf: upload the zip, set the main document to `main.tex` (or `supplementary.tex`); the default
-pdfLaTeX compiler works. Needed packages are in TeX Live (IEEEtran, tikz, booktabs, tabularx, float,
+pdfLaTeX compiler works. Needed packages are in TeX Live (IEEEtran, booktabs, tabularx, float,
 tocloft).
 
 ## Moving into the official IEEE Access template
@@ -50,6 +50,10 @@ tocloft).
       (union >= 0.25 as sensitivity analysis), non-inferiority margin delta = 0.5 Dice points.
 - [ ] Check every reference marked `% VERIFY` against the publisher or arXiv page (authors, title,
       venue, pages, DOI) and fill the `% TODO` entry for the ICEEIS paper (`iceeis2026own`).
+- [ ] Regenerate Fig. 1 thumbnails on the same training image:
+      `python scripts/figure_architecture.py --image <ISIC_xxx.jpg> --mask <ISIC_xxx_segmentation.png>`
+      (needs Playwright with Chromium and fontTools for the PDF; Inter is converted to TrueType so
+      the PDF has no Type 3 fonts).
 - [ ] Regenerate Fig. 2 on an ISIC 2018 *training* image:
       `python scripts/figure_synthetic_artifacts.py --image <ISIC_xxx.jpg> --mask <ISIC_xxx_segmentation.png>`.
 - [ ] Replace the placeholder figures (severity sweep, qualitative results, training histories,

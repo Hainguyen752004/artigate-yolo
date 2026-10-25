@@ -9,3 +9,5 @@
 *.fdb_latexmk
 *.fls
 *.pdf
+!figures/*.pdf
+figures/*.png
