@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 import torch
 
+from artigate.data.masks import write_mask
+
 
 def test_train_passes_shared_schedule_and_transfer_trainer(yolo_dataset, tmp_path, monkeypatch, load_script):
     train = load_script("train")
@@ -59,6 +61,29 @@ def test_eval_mask_rules(load_script):
     assert union[2:6].all() and union.sum() == 32
     empty = evaluate.predicted_mask(types.SimpleNamespace(masks=None), "top1", 0.25, (8, 8))
     assert not empty.any()
+
+
+@pytest.mark.parametrize("rule, conf, max_det", [("top1", 0.001, 1), ("union", 0.25, 300)])
+def test_eval_predicts_in_batch_sized_chunks(rule, conf, max_det, tmp_path, load_script):
+    evaluate = load_script("eval")
+    calls = []
+
+    class FakeModel:
+        def predict(self, **kwargs):
+            calls.append(kwargs)
+            return [types.SimpleNamespace(masks=None, orig_shape=(8, 8)) for _ in kwargs["source"]]
+
+    mask_dir = tmp_path / "masks"
+    mask_dir.mkdir()
+    paths = [tmp_path / f"img{index}.jpg" for index in range(5)]
+    for path in paths:
+        write_mask(mask_dir / f"{path.stem}.png", np.ones((8, 8), bool))
+    args = types.SimpleNamespace(mask_rule=rule, conf=0.25, batch=2)
+    rows = evaluate.per_image_rows(FakeModel(), paths, mask_dir, tmp_path, args, "cpu")
+    assert [len(call["source"]) for call in calls] == [2, 2, 1]
+    assert all((call["conf"], call["max_det"]) == (conf, max_det) for call in calls)
+    assert [row["image_id"] for row in rows] == [path.stem for path in paths]
+    assert all(row["dice"] == 0.0 for row in rows)
 
 
 def write_metrics(path, values):
