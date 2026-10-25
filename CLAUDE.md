@@ -11,6 +11,7 @@ Bài 1 (ArtiGate-YOLO) trong lộ trình 3 bài Q1. Kế hoạch đầy đủ n�
   - quy tắc mask chính là top-1 (`scripts/eval.py --mask-rule top1`), union ≥ 0,25 chỉ là phân tích độ nhạy;
   - biên không thua kém trên ảnh sạch δ = 0,5 điểm Dice;
   - optimizer cố định AdamW lr 0.002 trong `configs/train/default.yaml`.
+  Phân tích chính dùng nguyên 1.000 ảnh test chính thức; phân tích độ nhạy bỏ 46 ảnh trùng ảnh train (`compare_family.py --exclude data/splits/isic2018_test_near_duplicates.csv --exclude-verdicts same_photo,same_lesion`) và bỏ cả 50 ảnh (không lọc verdict).
   Chạy thử chỉ đánh giá trên val. Tập test chỉ chấm bằng checkpoint của các run chính thức, mỗi checkpoint chấm một lần, và không chỉnh gì sau khi đã xem kết quả test.
 - Dữ liệu (chốt 25/10/2026): chỉ ISIC 2018 Task 1 dùng để train. HAM10000 (một ảnh mỗi tổn thương, ảnh có image_id nhỏ nhất), PH2 và DDI có mask FEDD (333 ảnh) chỉ là tập test ngoài, không train lại. Mask bút và thước của FEDD và mask lông thật chỉ dùng để đánh giá đầu artifact, không bao giờ dùng để train hay chọn mô hình. Bộ mask lông Hossain (500 ảnh): báo riêng 22 ảnh chưa dùng khi train (15 ảnh test ISIC, 7 ảnh ngoài) và 478 ảnh trùng train; 15 ảnh test chỉ chấm bằng checkpoint chính thức như phần còn lại của tập test.
 - Bảo mật: không dùng nội dung nào từ các bản thảo hội nghị anh Hải đang review (không ghi mã bài ở đây). Không đọc thư mục `D:\PAPER_SPKT\paper_base_ham1000`.

@@ -471,7 +471,8 @@ Seed 0 only & \res & \res & \res & \res \\
 Seed 1 only & \res & \res & \res & \res \\
 Seed 2 only & \res & \res & \res & \res \\
 Bootstrap seeds 1--5 (range of interval limits) & \res & -- & \res & -- \\
-Test images with a near-duplicate in training removed & \res & \res & \res & \res \\
+Without the 46 test duplicates of training images & \res & \res & \res & \res \\
+Without all 50 flagged test images & \res & \res & \res & \res \\
 Labels of annotator 1 only (common subset) & \res & \res & \res & \res \\
 Labels of annotator 2 only (common subset) & \res & \res & \res & \res \\
 \TBD{$\lambda=0.5$ / $2$ (if run)} & \res & \res & \res & \res \\
@@ -613,7 +614,7 @@ Layer & From & Module & Output \\
 The channel-attention max pooling of CBAM and AGA is computed with \texttt{amax} over the spatial dimensions instead of adaptive max pooling, whose CUDA backward pass is not deterministic; the forward outputs of the two agree to within $10^{-6}$ (unit test). Training runs with \texttt{deterministic=True}. Synthetic artifacts draw their seed from NumPy's global random state, which Ultralytics seeds in every dataloader worker, so they are as reproducible as the other augmentations. \TBD{Confirm by repeating one short run with the same seed.}
 
 \subsection{Leakage checks}
-Before scoring, each test set is compared with the training data (\texttt{scripts/check\_leakage.py}): shared ISIC identifiers, and near-duplicate candidates from a 64-bit difference hash (Hamming distance $\le4$) confirmed by a correlation $\ge0.95$ of $64\times64$ grey thumbnails of the image content. Rows and columns that consist only of letterbox padding are cropped before the correlation: on whole canvases, 111 unrelated ISIC 2018 / HAM10000 pairs exceeded the threshold only because photos with the same aspect ratio share identical padding bands. On the content, the highest correlation between ISIC 2018 training images and HAM10000 was 0.944, and the top pairs, checked by eye, show different lesions. External test sets are cleaned on the test side; for the official ISIC 2018 validation and test partitions, pairs are reported and a sensitivity analysis without them is given, but the partitions are kept so that results stay comparable with other work \TBD{(counts below)}. Near-duplicates detect the same photograph, not different photographs of the same lesion; ISIC 2018 does not publish lesion identifiers, so the latter cannot be excluded (main text, limitations).
+Before scoring, each test set is compared with the training data (\texttt{scripts/check\_leakage.py}): shared ISIC identifiers, and near-duplicate candidates from a 64-bit difference hash (Hamming distance $\le4$) confirmed by a correlation $\ge0.95$ of $64\times64$ grey thumbnails of the image content. Rows and columns that consist only of letterbox padding are cropped before the correlation: on whole canvases, 111 unrelated ISIC 2018 / HAM10000 pairs exceeded the threshold only because photos with the same aspect ratio share identical padding bands. On the content, the highest correlation between ISIC 2018 training images and HAM10000 was 0.944, and the top pairs, checked by eye, show different lesions. External test sets are cleaned on the test side; for the official ISIC 2018 validation and test partitions, pairs are reported and a sensitivity analysis without them is given, but the partitions are kept so that results stay comparable with other work. Every candidate pair with a content correlation between 0.90 and 0.99 was checked by eye, because the 0.95 threshold missed true copies (one test image is a training photograph with a watermark); pairs at 0.99 or above are near-identical. Result (\texttt{data/splits/isic2018\_test\_near\_duplicates.csv}): 5 validation images, all the same photograph as a training image; 50 test images, of which 43 show the same photograph, 3 the same lesion photographed again and 4 are uncertain. Because the best checkpoint is chosen on the validation set, its 5 duplicates make that choice slightly optimistic for every model alike. Near-duplicates detect the same photograph, not different photographs of the same lesion; ISIC 2018 does not publish lesion identifiers, so the latter cannot be excluded (main text, limitations).
 
 \begin{table}[H]
 \centering
@@ -624,13 +625,14 @@ Before scoring, each test set is compared with the training data (\texttt{script
 \toprule
 Test set vs.\ ISIC 2018 train & Shared IDs & Likely duplicates & Removed \\
 \midrule
-ISIC 2018 validation & \res & \res & kept \\
-ISIC 2018 test & \res & \res & kept \\
+ISIC 2018 validation & 0 & 5 & kept \\
+ISIC 2018 test & 0 & 46 (+4 uncertain) & kept$^{\dagger}$ \\
 HAM10000 (one image per lesion) & 0 & 0 & 0 \\
 PH2 & 0 & 0 & 0 \\
 DDI (FEDD subset) & 0 & 0 & 0 \\
 \bottomrule
 \end{tabular}
+\par\smallskip{\footnotesize $^{\dagger}$Kept in the primary analysis; left out in the sensitivity analyses of Table~\ref{tab:s-sensitivity}.\par}
 \end{table}
 
 \subsection{Non-YOLO baselines}

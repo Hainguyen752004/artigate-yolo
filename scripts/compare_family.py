@@ -14,6 +14,9 @@ adjusts the p-values of all rows produced by one call, per metric, so one call =
         --strata data/splits/isic2018_test_artifacts.csv \
         --subsets any_artifact,with_hair,with_ruler,with_marker,with_dark_corner,no_artifact --out runs/stats/primary
 
+Sensitivity analyses: --exclude data/splits/isic2018_test_near_duplicates.csv --exclude-verdicts
+same_photo,same_lesion leaves out the test images that duplicate a training image.
+
 Writes <out>.json and <out>.md. Differences are model minus reference; W/T/L counts the images on
 which the model is better / equal / worse than the reference (lower is better for HD95).
 """
@@ -33,9 +36,23 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from artigate.metrics import METRIC_NAMES  # noqa: E402
 from artigate.provenance import write_json  # noqa: E402
 from artigate.stats import bootstrap_ci, holm_adjust, paired_comparison  # noqa: E402
-from bootstrap_ci import read_rows, strata_subsets  # noqa: E402
+from bootstrap_ci import _sample_id, read_rows, strata_subsets  # noqa: E402
 
 LOWER_IS_BETTER = {"hd95"}
+
+
+def read_exclusions(path, verdicts):
+    """Sample ids to leave out (e.g. test images that duplicate a training image).
+
+    ``path`` is a CSV with an ``image_id`` column; if it has a ``verdict`` column, only rows whose
+    verdict is in ``verdicts`` are used (all rows when ``verdicts`` is empty).
+    """
+    import csv
+
+    keep = {v for v in verdicts if v}
+    with Path(path).open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    return {_sample_id(r["image_id"]) for r in rows if not keep or "verdict" not in r or r["verdict"] in keep}
 
 
 def parse_spec(spec):
@@ -114,6 +131,10 @@ def main(argv=None):
     ap.add_argument("--strata", type=Path, default=None, help="image-level artifact flags CSV")
     ap.add_argument("--subsets", default="all", help="comma list of subsets; 'all' = every test image")
     ap.add_argument("--min-stratum", type=int, default=10, help="skip subsets with fewer images")
+    ap.add_argument("--exclude", type=Path, default=None,
+                    help="CSV of image ids to leave out of every subset (sensitivity analyses)")
+    ap.add_argument("--exclude-verdicts", default="",
+                    help="with --exclude: comma list of verdicts to use, e.g. same_photo,same_lesion (default: all rows)")
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, required=True, help="output path without extension")
@@ -129,9 +150,16 @@ def main(argv=None):
     if missing:
         ap.error(f"unknown subsets {missing}; available: {sorted(available)} (strata need --strata)")
     chosen = {s: available[s] for s in wanted}
+    excluded = set()
+    if args.exclude is not None:
+        excluded = read_exclusions(args.exclude, args.exclude_verdicts.split(","))
+        chosen = {s: [i for i in ids if _sample_id(i) not in excluded] for s, ids in chosen.items()}
     report = compare(args.reference, args.model, metrics, chosen, args.n_boot, args.seed, args.min_stratum)
     report["skipped"] = {s: len(ids) for s, ids in chosen.items() if s != "all" and len(ids) < args.min_stratum}
     report["strata_csv"] = str(args.strata) if args.strata else None
+    report["excluded"] = {"csv": str(args.exclude) if args.exclude else None, "verdicts": args.exclude_verdicts,
+                          "n_listed": len(excluded),
+                          "n_removed": len([i for i in ref_ids if _sample_id(i) in excluded])}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     write_json(args.out.with_suffix(".json"), report)
     text = markdown(report)

@@ -112,3 +112,22 @@ def test_compare_family_averages_seeds_and_applies_holm(tmp_path, load_script):
     assert rows[("A4", "all")]["wins"] == 60 and rows[("A4", "all")]["losses"] == 0
     assert report["models"]["A1"]["per_seed_means"]["dice"][0] < report["models"]["A1"]["per_seed_means"]["dice"][2]
     assert (tmp_path / "primary.md").is_file() and (tmp_path / "primary.json").is_file()
+
+
+def test_compare_family_excludes_listed_images(tmp_path, load_script):
+    rng = np.random.default_rng(5)
+    base = rng.uniform(0.7, 0.9, 40)
+    write_metrics(tmp_path / "a1.csv", base)
+    write_metrics(tmp_path / "a4.csv", base + 0.01)
+    (tmp_path / "dups.csv").write_text(
+        "split,image_id,train_id,thumb_corr,verdict,checked\n"
+        "test,img0,x,0.99,same_photo,eye\ntest,img1,x,0.97,same_lesion,eye\ntest,img2,x,0.93,unsure,eye\n",
+        encoding="utf-8")
+    common = ["--reference", f"A1={tmp_path / 'a1.csv'}", "--model", f"A4={tmp_path / 'a4.csv'}",
+              "--metrics", "dice", "--n-boot", "100"]
+    script = load_script("compare_family")
+    confirmed = script.main(common + ["--exclude", str(tmp_path / "dups.csv"),
+                                      "--exclude-verdicts", "same_photo,same_lesion", "--out", str(tmp_path / "c")])
+    everything = script.main(common + ["--exclude", str(tmp_path / "dups.csv"), "--out", str(tmp_path / "e")])
+    assert confirmed["rows"][0]["n"] == 38 and confirmed["excluded"]["n_removed"] == 2
+    assert everything["rows"][0]["n"] == 37 and everything["excluded"]["n_removed"] == 3
