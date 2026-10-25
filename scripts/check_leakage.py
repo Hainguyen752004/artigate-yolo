@@ -4,8 +4,9 @@
 export_yolo.py already rejects the same ISIC id in two splits of one manifest; this script also
 catches the same photo under different names and across datasets. Run it for every train/test pair
 you report, e.g. ISIC 2018 train vs HAM10000 test, and ISIC 2018 train vs PH2. Candidates come from a 64-bit difference hash (Hamming distance <= --max-dist);
-each candidate is then scored by the correlation of 64x64 grey thumbnails (corr >= 0.95 = likely the
-same photo). Dermoscopy images look alike, so always check the flagged pairs by eye.
+each candidate is then scored by the correlation of 64x64 grey thumbnails of the image content, with
+letterbox padding cropped first (corr >= 0.95 = likely the same photo). Dermoscopy images look alike,
+so always check the flagged pairs by eye.
 
     python scripts/check_leakage.py --a data/yolo/isic2018/images/train --b data/yolo/ham10000/images/test \
         --out runs/leakage/isic_train_vs_ham_test.csv
@@ -46,8 +47,22 @@ def hashes(folder):
     return files, np.array([dhash(p) for p in files], np.uint64)
 
 
+def strip_padding(gray, value=114, tolerance=3):
+    """Crop rows and columns that are entirely letterbox padding.
+
+    Two different photos with the same aspect ratio share identical padding bands, which pushed the
+    thumbnail correlation of unrelated HAM10000 / ISIC 2018 pairs above 0.95.
+    """
+    pad = np.abs(gray.astype(np.int16) - value) <= tolerance
+    rows, cols = np.where(~pad.all(axis=1))[0], np.where(~pad.all(axis=0))[0]
+    if rows.size == 0 or cols.size == 0:
+        return gray
+    return gray[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+
+
 def thumb_corr(pa, pb):
-    a, b = (cv2.resize(cv2.imread(str(p), cv2.IMREAD_GRAYSCALE), (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32).ravel() for p in (pa, pb))
+    a, b = (cv2.resize(strip_padding(cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)), (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32).ravel()
+            for p in (pa, pb))
     a, b = a - a.mean(), b - b.mean()
     return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-6))
 
