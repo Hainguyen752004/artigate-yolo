@@ -299,8 +299,11 @@ def build(thumbs):
     s.text(373, 830, "channel attention (as in CBAM)", 19, 600, GROUP)
     s.block(176, 646, 128, 50, POOL, "AvgPool", "over H×W", 20, 17)
     s.block(176, 742, 128, 50, POOL, "MaxPool", "over H×W", 20, 17)
+    # one MLP applied to both pooled vectors (CBAM shares its weights): drawn twice, boxed as shared
+    s.rect(320, 637, 148, 164, "none", GROUP, 1.8, rx=8, dash="4 4")
     s.block(330, 646, 126, 50, CONV, "MLP", "C → C/16 → C", 20, 17)
     s.block(330, 742, 126, 50, CONV, "MLP", "C → C/16 → C", 20, 17)
+    s.text(394, 725, "shared weights", 17, 700, GROUP)
     s.line([(110, yc), (136, yc), (136, 671), (172, 671)])
     s.line([(136, yc), (136, 767), (172, 767)])
     s.dot(136, yc)
