@@ -1,4 +1,11 @@
-"""Train one YOLO26-seg configuration with the shared Paper 1 schedule."""
+"""Train one YOLO26-seg configuration with the shared Paper 1 schedule.
+
+Every ablation row (A0-A7, A1s) uses the same ArtiGateTrainer. Synthetic artifacts and artifact
+targets are switched on by an ``artigate:`` block in the dataset YAML (configs/data/isic2018_art.yaml);
+the artifact loss only exists for model YAMLs with an ArtifactHead.
+    A3 = --model configs/models/yolo26n-seg-p2-artigate.yaml --art-lambda 0
+    A5 = --model configs/models/yolo26n-seg-p2-artigate.yaml --p-synth 0
+"""
 import argparse
 import os
 from pathlib import Path
@@ -17,7 +24,7 @@ from ultralytics import YOLO
 from artigate.data.dataset_yaml import runtime_dataset_yaml
 from artigate.modules import register_modules
 from artigate.provenance import environment, git_state, sha256_file, warn_if_unpinned, write_json
-from artigate.trainer import transfer_trainer
+from artigate.trainer import artigate_trainer
 
 DEFAULT_MODEL = ROOT / "configs" / "models" / "yolo26n-seg-p2-cbam.yaml"
 DEFAULT_DATA = ROOT / "configs" / "data" / "isic2018.yaml"
@@ -67,6 +74,10 @@ def parse_args(argv=None):
     parser.add_argument("--batch", type=_positive_int, default=None, help="override the schedule batch size")
     parser.add_argument("--workers", type=_nonnegative_int, default=None)
     parser.add_argument("--fraction", type=_fraction, default=None, help="train on a fraction of the data (smoke tests)")
+    parser.add_argument("--art-lambda", type=float, default=None,
+                        help="override art_loss.lambda of the model YAML (0 = no artifact supervision, row A3)")
+    parser.add_argument("--p-synth", type=float, default=None,
+                        help="override artigate.p_synth of the dataset YAML (0 = no synthetic artifacts, row A5)")
     return parser.parse_args(argv)
 
 
@@ -78,6 +89,10 @@ def training_arguments(args):
     if args.workers is None and platform.system() == "Windows":
         hyp["workers"] = 0
     return hyp
+
+
+def art_overrides(args):
+    return {} if args.p_synth is None else {"p_synth": args.p_synth}
 
 
 def main(argv=None):
@@ -93,7 +108,8 @@ def main(argv=None):
     with runtime_dataset_yaml(args.data) as runtime_yaml:
         model = YOLO(str(args.model))
         model.train(
-            trainer=transfer_trainer(pretrained), data=str(runtime_yaml), seed=args.seed, device=device,
+            trainer=artigate_trainer(pretrained, args.art_lambda, art_overrides(args)), data=str(runtime_yaml),
+            seed=args.seed, device=device,
             project=str(args.project), name=name, exist_ok=False, verbose=False, **hyp,
         )
     save_dir = Path(model.trainer.save_dir)
@@ -104,6 +120,12 @@ def main(argv=None):
         "data_yaml": str(args.data),
         "hyp": hyp,
         "seed": args.seed,
+        "artigate": {
+            "art_lambda_override": args.art_lambda,
+            "data_overrides": art_overrides(args),
+            "art_loss": (getattr(getattr(model.trainer, "model", None), "yaml", None) or {}).get("art_loss"),
+            "data_block": (getattr(model.trainer, "data", None) or {}).get("artigate"),
+        },
         "device": str(device),
         "pretrained": None if pretrained is None else {"path": str(pretrained), "sha256": sha256_file(pretrained)},
         "transfer": None if report is None else {

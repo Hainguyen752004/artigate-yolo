@@ -8,17 +8,22 @@ Repo này là nơi chứa code duy nhất cho cả Claude trên web lẫn Claude
 
 - [x] Viết lại phần nền từ ICEEIS: mô hình A0/A1, tiền xử lý hai view (v1/v7), train, đánh giá, bootstrap
 - [ ] Script tạo manifest cho ISIC 2018, HAM10000 (chia theo `lesion_id`), PH2. Chờ kết quả `tree -L 2 data/raw`
-- [ ] Đầu phụ artifact, AGA, trainer cộng loss artifact, dán artifact tổng hợp (A2–A7)
+- [x] Code A2–A7: đầu phụ artifact, AGA, loss artifact (nhãn một phần), dán artifact tổng hợp, một trainer chung cho mọi dòng ablation
+- [ ] Chạy thật A0–A7 trên server (3 seed mỗi dòng)
 
 ## Cấu trúc thư mục
 
 ```
-configs/models/   YAML mô hình (A0, A1; A2–A7 sẽ thêm vào đây)
-configs/data/     YAML dữ liệu, `path` tính tương đối từ chính file YAML
+configs/models/   YAML mô hình A0, A1, A2 (cbam-arthead), A4 (artigate), A7 (artigate-p2only)
+configs/data/     YAML dữ liệu, `path` tính tương đối từ chính file YAML; `*_art.yaml` có khối `artigate:`
 configs/train/    lịch train dùng chung cho mọi mô hình (lấy từ lần chạy cuối của ICEEIS)
-src/artigate/     modules.py (CBAM, đầu P2), transfer.py, trainer.py, metrics.py, stats.py, provenance.py
-src/artigate/data/  views.py (v1/v7), masks.py, split.py, export.py, dataset_yaml.py
-scripts/          export_yolo.py, train.py, eval.py, bootstrap_ci.py
+src/artigate/     modules.py (CBAM, đầu P2, ArtifactHead, AGA), artifact_loss.py, transfer.py, trainer.py,
+                  metrics.py, stats.py, provenance.py
+src/artigate/data/  views.py (v1/v7), masks.py, split.py, export.py, dataset_yaml.py,
+                  synth_artifacts.py (sinh artifact có mask), artifact_dataset.py (ảnh train 7 kênh)
+scripts/          export_yolo.py, train.py, eval.py, bootstrap_ci.py,
+                  eval_artifact_head.py, overfit_artifact_head.py, viz_train_batch.py, viz_artifact_maps.py,
+                  make_severity_sets.py, label_artifacts.py, make_artifact_flags.py, check_leakage.py, benchmark.py
 data/raw/         dữ liệu gốc (không lên git)
 data/splits/      manifest chia dữ liệu, CÓ lên git để ai cũng chia giống nhau
 data/yolo/        dữ liệu đã xuất sang YOLO-seg (không lên git)
@@ -65,6 +70,17 @@ python scripts/train.py --model configs/models/yolo26n-seg-p2-cbam.yaml --data c
 
 Mặc định tên run là `<model>_s<seed>`. Muốn chạy thử nhanh thì thêm `--epochs 3 --batch 4 --fraction 0.1`, nhưng không dùng các run đó cho bài báo.
 
+Mọi dòng ablation đều qua `ArtiGateTrainer` (kế thừa `TransferSegmentationTrainer`), nên dữ liệu, augmentation và cách nạp trọng số giống hệt nhau. Các dòng ArtiGate dùng `configs/data/isic2018_art.yaml`:
+
+```bash
+python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --data configs/data/isic2018_art.yaml --seed 0              # A4
+python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --data configs/data/isic2018_art.yaml --art-lambda 0 --seed 0  # A3
+python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --data configs/data/isic2018_art.yaml --p-synth 0 --seed 0     # A5
+python scripts/train.py --model configs/models/yolo26n-seg-p2-cbam.yaml --data configs/data/isic2018_art.yaml --name A1s_s0 --seed 0     # A1s
+```
+
+Trước khi chạy thật: `viz_train_batch.py` (mask artifact khớp ảnh sau augmentation) và `overfit_artifact_head.py --iters 300` (dữ liệu giả: IoU lông 0,83, góc tối 0,87 sau 250 bước ở 320 px).
+
 **4. Đánh giá.**
 
 ```bash
@@ -73,10 +89,14 @@ python scripts/eval.py --weights runs/segment/yolo26n-seg-p2-cbam_s0/weights/bes
 
 Script ghi `eval_summary.json` (mAP của Ultralytics cùng Dice/IoU/HD95/boundary F1 trung bình) và `per_image_metrics.csv`. Quy tắc mặc định `--mask-rule top1` lấy instance có độ tin cậy cao nhất, giống ICEEIS.
 
+Đầu artifact được đánh giá riêng trên artifact tổng hợp giữ lại (seed cố định): `python scripts/eval_artifact_head.py --weights <best.pt> --split val --n 100`. Bộ test theo mức độ artifact: `python scripts/make_severity_sets.py --split test --out data/yolo/isic2018_sev`, rồi chạy `eval.py` với `--data data/yolo/isic2018_sev/<loại>_s<mức>/data.yaml`.
+
 **5. Khoảng tin cậy và so sánh ghép cặp.**
 
 ```bash
 python scripts/bootstrap_ci.py runs/eval/A4_s0_test/per_image_metrics.csv --baseline runs/eval/A1_s0_test/per_image_metrics.csv
+# theo nhóm có/không artifact (cờ cấp ảnh từ scripts/label_artifacts.py)
+python scripts/bootstrap_ci.py ... --strata data/splits/isic2018_test_artifacts.csv
 ```
 
 ## Ablation
@@ -85,12 +105,15 @@ python scripts/bootstrap_ci.py runs/eval/A4_s0_test/per_image_metrics.csv --base
 |---|---|---|---|
 | A0 | Base + P2 | `configs/models/yolo26n-seg-p2.yaml` | sẵn sàng |
 | A1 | + CBAM (mô hình ICEEIS) | `configs/models/yolo26n-seg-p2-cbam.yaml` | sẵn sàng |
-| A2 | + đầu phụ artifact, không điều khiển | | chưa làm |
-| A3 | + AGA nhưng không có loss artifact | | chưa làm |
-| A4 | Đầy đủ: đầu phụ + AGA | | chưa làm |
-| A5 | A4 bỏ dán artifact tổng hợp | | chưa làm |
-| A6 | A4 với từng loại artifact riêng | | chưa làm |
-| A7 | AGA chỉ ở P2 so với P2 + P3 | | chưa làm |
+| A1s | A1 train trên cùng dữ liệu có artifact tổng hợp | `yolo26n-seg-p2-cbam.yaml` + `isic2018_art.yaml` | sẵn sàng |
+| A2 | + đầu phụ artifact, không điều khiển | `yolo26n-seg-p2-cbam-arthead.yaml` + `isic2018_art.yaml` | sẵn sàng |
+| A3 | + AGA nhưng không có loss artifact | A4 với `--art-lambda 0` | sẵn sàng |
+| A4 | Đầy đủ: đầu phụ + AGA | `yolo26n-seg-p2-artigate.yaml` + `isic2018_art.yaml` | sẵn sàng |
+| A5 | A4 bỏ dán artifact tổng hợp | A4 với `--p-synth 0` | sẵn sàng |
+| A6 | A4 với từng loại artifact riêng | đánh giá: `--strata` và `make_severity_sets.py` | sẵn sàng |
+| A7 | AGA chỉ ở P2 so với P2 + P3 | `yolo26n-seg-p2-artigate-p2only.yaml` + `isic2018_art.yaml` | sẵn sàng |
+
+A1s tách hiệu ứng "tăng cường dữ liệu bằng artifact" khỏi hiệu ứng của AGA. Chi phí ở 640×640 (đã fuse): A1 2,738 M tham số / 11,21 GFLOPs, A4 2,759 M / 12,26 GFLOPs.
 
 Baseline YOLO26n-seg thường dùng `--model yolo26n-seg.yaml` (YAML có sẵn của Ultralytics). Baseline hai view và baseline cạo lông (DullRazor) dùng dữ liệu xuất với `--train-views`/`--eval-views`.
 
@@ -106,5 +129,6 @@ Baseline YOLO26n-seg thường dùng `--model yolo26n-seg.yaml` (YAML có sẵn 
 ## Lưu ý tái lập
 
 - Ultralytics được cố định ở bản 8.4.13. Các script cảnh báo nếu phiên bản cài đặt khác.
-- `AdaptiveMaxPool2d` trong CBAM không có bản tính ngược tất định trên CUDA. Vì vậy chạy lại A1 với cùng seed trên GPU sẽ không giống hệt từng bit. Đây là một lý do bắt buộc phải chạy 3 seed.
+- CBAM trước đây dùng `AdaptiveMaxPool2d`, không có bản tính ngược tất định trên CUDA. Giờ max-pool toàn cục tính bằng `amax` (cùng kết quả, có test), nên với `deterministic: true` hai lần chạy cùng seed có thể khớp. Vẫn bắt buộc chạy 3 seed.
+- Không cài `albumentations`: Ultralytics chỉ áp nó lên ảnh 3 kênh, nên baseline và các dòng ArtiGate (ảnh 7 kênh) sẽ khác augmentation.
 - Khi import, Ultralytics thay hàm `cv2.imread` toàn cục, và ảnh xám trả về có dạng (H, W, 1). `read_mask` đã xử lý trường hợp này.

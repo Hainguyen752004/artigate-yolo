@@ -42,7 +42,9 @@ def environment():
         "python": sys.version.split()[0],
         "torch": torch.__version__,
         "cuda": torch.version.cuda,
-        "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        # Training on CPU makes Ultralytics set CUDA_VISIBLE_DEVICES="" after CUDA may already be
+        # initialised; is_available() can then stay True while device_count() drops to 0.
+        "gpu": torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else None,
         "ultralytics": ultralytics.__version__,
     }
 

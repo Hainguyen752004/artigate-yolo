@@ -1,0 +1,16 @@
+# ISIC 2018 Task 1 as in isic2018.yaml, plus synthetic artifacts and artifact targets for training.
+# Used by the ArtiGate rows (A2-A7) and by A1s (A1 trained on the same artifact-augmented data).
+path: ../../data/yolo/isic2018
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: lesion
+artigate:
+  p_synth: 0.7 # share of training images that get synthetic artifacts (--p-synth overrides it)
+  severity: [1, 4] # inclusive range, sampled per artifact
+  type_probs: [0.5, 0.3, 0.3, 0.3] # hair, ruler, marker, dark_corner
+  auto_neg: true # conservative pixel negatives (artigate/data/artifact_dataset.py: auto_negatives)
+  # image-level flags (Bissoto et al.) from scripts/make_artifact_flags.py, relative to the repo root;
+  # if the file is missing, training continues without them and prints a warning
+  flags_csv: data/splits/isic2018_train_flags.csv

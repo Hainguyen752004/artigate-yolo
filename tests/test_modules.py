@@ -4,7 +4,7 @@ import pytest
 import torch
 from ultralytics import YOLO
 
-from artigate.modules import CBAM, P2CompatibleSegment26, register_modules
+from artigate.modules import CBAM, ChannelAttention, P2CompatibleSegment26, register_modules
 
 MODELS = Path(__file__).resolve().parents[1] / "configs" / "models"
 
@@ -39,3 +39,14 @@ def test_p2_models_predict_on_four_strides_with_stride4_prototypes(name, cbam_la
         (detections, prototypes), _ = model(torch.zeros(1, 3, 256, 256))
     assert torch.isfinite(detections).all()
     assert prototypes.shape[-2:] == (64, 64)
+
+
+def test_channel_attention_matches_adaptive_pooling():
+    """The amax/mean form must give exactly what the ICEEIS AdaptiveAvg/MaxPool2d form gave."""
+    torch.manual_seed(0)
+    attention = ChannelAttention(32, 16)
+    x = torch.randn(2, 32, 9, 7)
+    reference = attention.sigmoid(
+        attention.fc(torch.nn.AdaptiveAvgPool2d(1)(x)) + attention.fc(torch.nn.AdaptiveMaxPool2d(1)(x))
+    ) * x
+    assert torch.allclose(attention(x), reference, atol=1e-6)
