@@ -104,6 +104,9 @@ def main(argv=None):
     if flags:
         zero = [row for row in kept if row["flag_hair"] == 0]
         print(f"image-level flags: {len(zero)} of {len(kept)} images have hair = 0, so all their hair pixels are absent")
+        # A flag of 0 marks the whole hair channel absent, so the union counts every hair pixel of those images.
+        union = sum(row["hair_pixels"] if row["flag_hair"] == 0 else row["absent_auto"] for row in kept)
+        print(f"rules or flags: {union / hair.sum():.2%} of all real hair pixels labelled absent")
     else:
         print(f"image-level flags: not computed, {args.flags_csv} does not exist")
     print(f"[INFO] Wrote per-image counts to {args.out}")
