@@ -423,7 +423,7 @@ Dark corner & \res & \res & \res & \res \\
 \end{table}
 
 \paragraph{Real artifacts}
-Marker and ruler maps are compared with the FEDD masks~\cite{carrion2023fedd} on the 333 DDI images that have them, and the hair map with real hair masks~\cite{hossain2023hairmask} \TBD{on the images that do not overlap with ISIC 2018 training or test images (check with \texttt{scripts/check\_leakage.py})}. None of these masks is used for training or model selection. The images are letterboxed to $640\times640$ like all inputs; each predicted probability map is upsampled to the canvas and scored inside the image content area only. FEDD has no hair or dark-corner class, so only the marker and ruler maps are scored there; FEDD's marker class is compared with our marker-ink map.
+Marker and ruler maps are compared with the FEDD masks~\cite{carrion2023fedd} on the 333 DDI images that have them, and the hair map with the 500 real hair masks of~\cite{hossain2023hairmask}. Matching image identities with \texttt{scripts/check\_leakage.py} places 478 of these images in the ISIC 2018 training set, 15 in its test set and 7 in neither. The model is run on the images of the hair-mask set itself, so each mask is aligned with its own image. The 478 training images were seen during training, but no real hair pixel in them was labelled present; real hair could only be labelled absent by the rules of Section~\ref{sec:s-labels} or by an image-level flag of no hair. We report the 22 unseen images and the 478 seen images separately, and the share of real hair pixels in the 478 that were labelled absent during training \TBD{(computable only where the hair-mask image aligns with the ISIC original after resizing)}. The 15 test images are scored only with the final checkpoints, like the rest of the test set. None of these masks is used for training or model selection. The images are letterboxed to $640\times640$ like all inputs; each predicted probability map is upsampled to the canvas and scored inside the image content area only. FEDD has no hair or dark-corner class, so only the marker and ruler maps are scored there; FEDD's marker class is compared with our marker-ink map.
 
 \begin{table}[H]
 \centering
@@ -431,18 +431,19 @@ Marker and ruler maps are compared with the FEDD masks~\cite{carrion2023fedd} on
 \label{tab:s-arthead-real}
 \footnotesize
 \setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{lccccccccc}
+\begin{tabular}{lcccccccccccc}
 \toprule
-& \multicolumn{3}{c}{Marker (FEDD, DDI)} & \multicolumn{3}{c}{Ruler (FEDD, DDI)} & \multicolumn{3}{c}{Hair~\cite{hossain2023hairmask}} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
-Row & IoU & Dice & AP & IoU & Dice & AP & IoU & Dice & AP \\
+& \multicolumn{3}{c}{Marker (FEDD)} & \multicolumn{3}{c}{Ruler (FEDD)} & \multicolumn{3}{c}{Hair, unseen (22)} & \multicolumn{3}{c}{Hair, seen (478)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Row & IoU & Dice & AP & IoU & Dice & AP & IoU & Dice & AP & IoU & Dice & AP \\
 \midrule
-A2 & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
-A3 & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
-\textbf{A4} & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
-A7 & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A2 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A3 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+\textbf{A4} & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
+A7 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
 \midrule
-Images with the artifact ($n$) & \multicolumn{3}{c}{\res} & \multicolumn{3}{c}{\res} & \multicolumn{3}{c}{\res} \\
+Images with the artifact ($n$) & \multicolumn{3}{c}{\res} & \multicolumn{3}{c}{\res} & \multicolumn{3}{c}{22} & \multicolumn{3}{c}{478} \\
+Hair pixels labelled absent in training (\%) & \multicolumn{3}{c}{--} & \multicolumn{3}{c}{--} & \multicolumn{3}{c}{--} & \multicolumn{3}{c}{\res} \\
 \bottomrule
 \end{tabular}
 \end{table}
