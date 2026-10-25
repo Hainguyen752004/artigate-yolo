@@ -18,8 +18,15 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+CODE_DIRS = ("src/", "scripts/", "configs/", "tests/")
+
+
 def git_state(root):
-    """Return the commit and dirty flag of the repository at ``root``, or None outside git."""
+    """Return the commit and dirty flag of the repository at ``root``, or None outside git.
+
+    ``dirty`` means a tracked file differs from the commit, or an untracked file sits where code is
+    read from (CODE_DIRS). Other untracked files, such as personal notes, are listed but do not count.
+    """
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
@@ -29,7 +36,11 @@ def git_state(root):
         ).stdout
     except (OSError, subprocess.CalledProcessError):
         return None
-    return {"commit": commit, "dirty": bool(status.strip())}
+    lines = [line for line in status.splitlines() if line.strip()]
+    untracked = [line[3:].strip('"') for line in lines if line.startswith("??")]
+    tracked_changes = [line for line in lines if not line.startswith("??")]
+    dirty = bool(tracked_changes) or any(path.startswith(CODE_DIRS) for path in untracked)
+    return {"commit": commit, "dirty": dirty, "untracked": untracked[:20]}
 
 
 def environment():

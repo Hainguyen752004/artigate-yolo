@@ -80,6 +80,17 @@ python scripts/train.py --model configs/models/yolo26n-seg-p2-artigate.yaml --da
 python scripts/train.py --model configs/models/yolo26n-seg-p2-cbam.yaml --data configs/data/isic2018_art.yaml --name A1s_s0 --seed 0     # A1s
 ```
 
+**Train chính thức** dùng `scripts/run_plan.py`, không gọi `train.py` bằng tay. Các dòng khai báo trong `configs/runs.yaml`, tên run là `<dòng>_s<seed>` (A4/A5 và A1/A1s dùng chung YAML mô hình nên bắt buộc phải có tên riêng). Script chỉ chạy khi HEAD đúng commit của tag `train-v1` và code không có thay đổi chưa commit; run đã xong thì bỏ qua, run bị gián đoạn thì dừng lại.
+
+```bash
+python scripts/run_plan.py --rows A4 --seeds 0                 # mốc 1: xem đầu artifact và beta sau 20-30 epoch
+python scripts/inspect_run.py runs/segment/A4_s0               #   beta, trọng số kênh artifact, art_loss (chạy được khi đang train)
+python scripts/run_plan.py --rows A1 A1s --seeds 0             # mốc 2: cùng A4_s0 trả lời câu hỏi chính
+python scripts/run_plan.py --rows A0 A2 A3 A5 A7 --seeds 0     # mốc 3
+python scripts/run_plan.py --rows all --seeds 1 2
+python scripts/check_provenance.py --tag train-v1 runs/segment/*_s*   # đúng commit, code sạch, AdamW, đúng dòng
+```
+
 Trước khi chạy thật: `viz_train_batch.py` (mask artifact khớp ảnh sau augmentation) và `overfit_artifact_head.py --iters 300` (dữ liệu giả: IoU lông 0,83, góc tối 0,87 sau 250 bước ở 320 px).
 
 **4. Đánh giá.**

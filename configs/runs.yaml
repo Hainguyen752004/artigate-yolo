@@ -1,0 +1,13 @@
+# Training rows of Paper 1, read by scripts/run_plan.py and scripts/check_provenance.py.
+# Run names are <row>_s<seed>. Every run uses configs/train/default.yaml; A4/A5 share a model YAML
+# and A1/A1s share one too, so a row is identified by its model, data and extra arguments together.
+# A6 is an analysis of A4 (artifact strata, severity sets) and has no training run.
+rows:
+  A0: {model: configs/models/yolo26n-seg-p2.yaml, data: configs/data/isic2018.yaml}
+  A1: {model: configs/models/yolo26n-seg-p2-cbam.yaml, data: configs/data/isic2018.yaml}
+  A1s: {model: configs/models/yolo26n-seg-p2-cbam.yaml, data: configs/data/isic2018_art.yaml}
+  A2: {model: configs/models/yolo26n-seg-p2-cbam-arthead.yaml, data: configs/data/isic2018_art.yaml}
+  A3: {model: configs/models/yolo26n-seg-p2-artigate-unsup.yaml, data: configs/data/isic2018_art.yaml}
+  A4: {model: configs/models/yolo26n-seg-p2-artigate.yaml, data: configs/data/isic2018_art.yaml}
+  A5: {model: configs/models/yolo26n-seg-p2-artigate.yaml, data: configs/data/isic2018_art.yaml, p_synth: 0}
+  A7: {model: configs/models/yolo26n-seg-p2-artigate-p2only.yaml, data: configs/data/isic2018_art.yaml}
