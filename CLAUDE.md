@@ -7,6 +7,11 @@ Bài 1 (ArtiGate-YOLO) trong lộ trình 3 bài Q1. Kế hoạch đầy đủ n�
 - Chia dữ liệu theo tổn thương (`lesion_id`) hoặc theo bệnh nhân. Mọi manifest phải qua `check_manifest` trước khi xuất.
 - Mỗi cấu hình chạy ít nhất 3 seed, cùng lịch train `configs/train/default.yaml`. Không chỉnh tham số trên tập test.
 - Báo cáo trung thực, kể cả chỗ mô hình không thắng. Tiêu chí thắng đã đặt trước khi chạy: thắng rõ trên ảnh nhiều artifact, không tệ hơn trên ảnh sạch.
+- Quy tắc đánh giá đã khóa ngày 25/10/2026, trước khi chấm bất kỳ ảnh test ISIC 2018 nào:
+  - quy tắc mask chính là top-1 (`scripts/eval.py --mask-rule top1`), union ≥ 0,25 chỉ là phân tích độ nhạy;
+  - biên không thua kém trên ảnh sạch δ = 0,5 điểm Dice;
+  - optimizer cố định AdamW lr 0.002 trong `configs/train/default.yaml`.
+  Chạy thử chỉ đánh giá trên val. Tập test chỉ chấm bằng checkpoint của các run chính thức, mỗi checkpoint chấm một lần, và không chỉnh gì sau khi đã xem kết quả test.
 - Bảo mật: không dùng nội dung nào từ các bản thảo hội nghị anh Hải đang review (không ghi mã bài ở đây). Không đọc thư mục `D:\PAPER_SPKT\paper_base_ham1000`.
 - Không đưa dữ liệu, `runs/`, `weights/`, `DTA/` hay file `*.pt` lên git. Manifest trong `data/splits/` thì có lên git.
 
