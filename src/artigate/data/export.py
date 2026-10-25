@@ -34,10 +34,12 @@ def read_manifest(path):
 
 
 def write_manifest(path, rows):
+    """Write the manifest columns, followed by any extra per-row columns (e.g. a subset label)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    extras = [key for key in (rows[0] if rows else {}) if key not in MANIFEST_FIELDS]
     with path.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=MANIFEST_FIELDS, extrasaction="ignore")
+        writer = csv.DictWriter(stream, fieldnames=[*MANIFEST_FIELDS, *extras])
         writer.writeheader()
         writer.writerows(rows)
 

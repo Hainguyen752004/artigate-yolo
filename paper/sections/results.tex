@@ -136,18 +136,20 @@ A7 & \res & \res & \res & \res & \res \\
 
 \begin{table}[!t]
 \centering
-\caption{Artifact head on real artifacts (never used for training): IoU / average precision of the marker and ruler maps against the FEDD masks on 333 DDI clinical images, and of the hair map against real hair masks.}
+\caption{Artifact head on real artifacts, whose masks were never used for training: IoU / average precision of the marker and ruler maps against the FEDD masks on 333 DDI clinical images, and of the hair map against real hair masks~\cite{hossain2023hairmask} on 22 images not used for training and on 478 ISIC 2018 training images whose hair was never labelled present.}
 \label{tab:arthead_real}
 \footnotesize
 \setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-Row & Marker (FEDD) & Ruler (FEDD) & Hair~\cite{hossain2023hairmask} \\
+& & & \multicolumn{2}{c}{Hair} \\
+\cmidrule(lr){4-5}
+Row & Marker & Ruler & unseen (22) & seen (478) \\
 \midrule
-A2 (auxiliary) & \res~/~\res & \res~/~\res & \res~/~\res \\
-A3 (unsupervised) & \res~/~\res & \res~/~\res & \res~/~\res \\
-\textbf{A4} & \res~/~\res & \res~/~\res & \res~/~\res \\
-A7 & \res~/~\res & \res~/~\res & \res~/~\res \\
+A2 (auxiliary) & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res \\
+A3 (unsup.) & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res \\
+\textbf{A4} & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res \\
+A7 & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res \\
 \bottomrule
 \end{tabular}
 \end{table}
