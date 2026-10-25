@@ -15,11 +15,23 @@ Exported images are letterboxed, so compare exports made with the same canvas si
 import argparse
 import csv
 from pathlib import Path
+import re
+import sys
 
 import cv2
 import numpy as np
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from artigate.data.split import isic_id
+
 EXT = (".jpg", ".jpeg", ".png", ".bmp")
+
+
+def sample_key(stem):
+    """Image identity: the ISIC id when there is one, otherwise the stem without a view suffix (_v1)."""
+    return isic_id(stem) or re.sub(r"_v\d+$", "", stem)
 
 
 def dhash(path, size=8):
@@ -48,23 +60,28 @@ def popcount64(x):
     return _LUT[x.view(np.uint8).reshape(*x.shape, 8)].sum(-1)
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--a", required=True)
     ap.add_argument("--b", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--max-dist", type=int, default=4)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     fa, ha = hashes(a.a)
     fb, hb = hashes(a.b)
     ka, kb = [p.stem for p in fa], [p.stem for p in fb]
-    same_id = sorted(set(ka) & set(kb))
-    rows = [(k, k, "same_id", "", "") for k in same_id]
+    # Compare identities, not raw stems: exports carry a view suffix and other releases rename files.
+    keys_a, keys_b = [sample_key(k) for k in ka], [sample_key(k) for k in kb]
+    stem_b = {}
+    for stem, key in zip(kb, keys_b):
+        stem_b.setdefault(key, stem)
+    same_id = sorted(set(keys_a) & set(stem_b))
+    rows = [(stem, stem_b[key], "same_id", "", "") for stem, key in zip(ka, keys_a) if key in stem_b]
     for i in range(0, len(ha), 512):
         d = popcount64(ha[i : i + 512, None] ^ hb[None, :])
         for r, c in zip(*np.where(d <= a.max_dist)):
-            if ka[i + r] != kb[c]:
+            if keys_a[i + r] != keys_b[c]:
                 corr = thumb_corr(fa[i + r], fb[c])
                 kind = "likely_duplicate" if corr >= 0.95 else "hash_match_only"
                 rows.append((ka[i + r], kb[c], kind, int(d[r, c]), round(corr, 4)))
