@@ -46,7 +46,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     with open(args.src, newline="", encoding="utf-8-sig") as stream:
-        reader = csv.DictReader(stream)
+        # The Bissoto annotation files are semicolon-separated.
+        try:
+            dialect = csv.Sniffer().sniff(stream.read(4096), delimiters=",;\t")
+        except csv.Error:
+            dialect = csv.excel
+        stream.seek(0)
+        reader = csv.DictReader(stream, dialect=dialect)
         columns, rows = reader.fieldnames, list(reader)
     id_col = args.id_col or next((c for c in columns if re.fullmatch(r"(image|image_id|img|name|file|id)", c, re.I)), columns[0])
     print(f"id column: {id_col}")

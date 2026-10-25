@@ -59,6 +59,21 @@ def test_make_artifact_flags_matches_columns(tmp_path, load_script):
     assert row == {"image_id": "ISIC_0000001", "hair": "0", "ruler": "1", "marker": "0", "dark_corner": "1"}
 
 
+def test_make_artifact_flags_reads_the_semicolon_bissoto_file(tmp_path, load_script):
+    """Same layout as artefacts-annotation/isic_bias.csv: ';'-separated, unnamed index column first."""
+    src = tmp_path / "isic_bias.csv"
+    src.write_text(";image;dark_corner;hair;gel_border;gel_bubble;ruler;ink;patches;label;label_string\n"
+                   "0;ISIC_0000000.png;0;0;0;0;0;0;0;0;benign\n"
+                   "1;ISIC_0000001.png;0;1;0;1;0;1;0;0;benign\n", encoding="utf-8")
+    load_script("make_artifact_flags").main(["--src", str(src), "--out", str(tmp_path / "flags.csv")])
+    with (tmp_path / "flags.csv").open(newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    assert rows == [
+        {"image_id": "ISIC_0000000", "hair": "0", "ruler": "0", "marker": "0", "dark_corner": "0"},
+        {"image_id": "ISIC_0000001", "hair": "1", "ruler": "0", "marker": "1", "dark_corner": "0"},
+    ]
+
+
 def test_eval_artifact_head_runs_on_a_checkpoint(yolo_dataset, tmp_path, load_script, capsys):
     register_modules()
     from artigate.artifact_loss import ArtiGateSegModel
