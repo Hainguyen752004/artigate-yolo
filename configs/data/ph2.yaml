@@ -1,0 +1,8 @@
+# PH2: external test set only (200 images), exported from data/splits/ph2.csv by scripts/export_yolo.py.
+# Never train on it. Ultralytics requires train and val keys, so all three point at the test images.
+path: ../../data/yolo/ph2
+train: images/test
+val: images/test
+test: images/test
+names:
+  0: lesion

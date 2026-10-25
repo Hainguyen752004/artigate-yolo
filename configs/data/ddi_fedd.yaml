@@ -1,0 +1,9 @@
+# DDI images with FEDD lesion masks: external test set only (333 clinical photos, Fitzpatrick I-VI),
+# exported from data/splits/ddi_fedd.csv by scripts/export_yolo.py. Never train on it.
+# Ultralytics requires train and val keys, so all three point at the test images.
+path: ../../data/yolo/ddi_fedd
+train: images/test
+val: images/test
+test: images/test
+names:
+  0: lesion
