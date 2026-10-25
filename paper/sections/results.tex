@@ -1,0 +1,161 @@
+% Every number in this section is a placeholder. Fill the tables from runs/eval (scripts/eval.py,
+% scripts/bootstrap_ci.py --strata, scripts/eval_artifact_head.py, scripts/benchmark.py) and rewrite
+% each paragraph around what the numbers show, including the comparisons ArtiGate-YOLO loses.
+% Parameters and GFLOPs (fused models, 640x640, nc = 1) are measured values.
+
+\subsection{Comparison on ISIC 2018}
+Table~\ref{tab:main} compares ArtiGate-YOLO with the baselines on the ISIC 2018 test set. \TBD{Report: the Dice and HD95 of A4 against A1 and against the strongest external baseline, with the paired difference, its interval and the Holm-adjusted p-value (Supplementary Section~S5); whether any baseline is better on any metric; the cost of each model.}
+
+\begin{table*}[!t]
+\centering
+\caption{Segmentation on the ISIC 2018 Task 1 test set (1,000 images, $640\times640$ canvas, top-1 mask rule). Metrics are per-image means over three seeds; $\pm$ is the standard deviation of the three per-seed means. Parameters and GFLOPs are for the fused models at $640\times640$. $\downarrow$: lower is better.}
+\label{tab:main}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccccccc}
+\toprule
+Model & Dice & IoU & HD95 (px)$\downarrow$ & BF1 & mAP50 (M) & mAP50--95 (M) & Params (M) & GFLOPs \\
+\midrule
+YOLO26n-seg~\cite{jocher2026yolo26} & \res & \res & \res & \res & \res & \res & 2.689 & 8.96 \\
+A0: + P2 & \res & \res & \res & \res & \res & \res & 2.735 & 11.20 \\
+A1: + P2 + CBAM~\cite{iceeis2026own} & \res & \res & \res & \res & \res & \res & 2.738 & 11.21 \\
+A1, DullRazor view (v7) & \res & \res & \res & \res & \res & \res & 2.738 & 11.21$^{\ast}$ \\
+A1, two views (v1 + v7)~\cite{iceeis2026own} & \res & \res & \res & \res & \res & \res & 2.738 & 11.21 \\
+U-Net~\cite{ronneberger2015unet} & \res & \res & \res & \res & -- & -- & \res & \res \\
+MALUNet~\cite{ruan2022malunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
+EGE-UNet~\cite{ruan2023egeunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
+nnU-Net 2D~\cite{isensee2021nnunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
+\midrule
+\textbf{ArtiGate-YOLO (A4)} & \res & \res & \res & \res & \res & \res & 2.759 & 12.26 \\
+\bottomrule
+\end{tabular}
+\par\vspace{2pt}
+\parbox{\textwidth}{\scriptsize $^{\ast}$Excludes the DullRazor and colour-constancy preprocessing, which runs outside the network. \TBD{Latency per image (FP16, batch 1) is reported in Table~\ref{tab:cost}.}}
+\end{table*}
+
+\subsection{Ablation}
+Table~\ref{tab:ablation} isolates each component. \TBD{Report in this order: A1 versus A0 (does CBAM help); A1s versus A1 (augmentation with artifacts alone); A2 versus A1s (auxiliary supervision without gating); A4 versus A2 (using the map inside attention); A4 versus A3 (supervised versus unsupervised map); A4 versus A5 (are synthetic artifacts needed); A4 versus A7 (placement). State which differences survive Holm correction and the learned $\beta$ values.}
+
+\begin{table*}[!t]
+\centering
+\caption{Ablation on the ISIC 2018 test set. $\Delta$Dice is the row minus A4 in Dice points with a 95\% bootstrap interval over images; $p_{\mathrm{Holm}}$ from two-sided Wilcoxon tests adjusted within the ablation family. ``Art.'' and ``Clean'': images with at least one artifact and with none, by our test-set labels. $\beta_2$, $\beta_3$: learned gate strengths of the AGA blocks after B2 and B3 (mean over seeds).}
+\label{tab:ablation}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llcccccccc}
+\toprule
+Row & Change & Dice & $\Delta$Dice [95\% CI] & $p_{\mathrm{Holm}}$ & HD95 (px)$\downarrow$ & BF1 & Dice, art. & Dice, clean & $\beta_2$ / $\beta_3$ \\
+\midrule
+A0 & no attention & \res & \res & \res & \res & \res & \res & \res & -- \\
+A1 & CBAM & \res & \res & \res & \res & \res & \res & \res & -- \\
+A1s & CBAM + synthetic artifacts & \res & \res & \res & \res & \res & \res & \res & -- \\
+A2 & + head, no gating & \res & \res & \res & \res & \res & \res & \res & -- \\
+A3 & AGA, unsupervised map & \res & \res & \res & \res & \res & \res & \res & \res \\
+\textbf{A4} & \textbf{AGA (proposed)} & \res & Reference & -- & \res & \res & \res & \res & \res \\
+A5 & AGA, $p_{\mathrm{synth}}=0$ & \res & \res & \res & \res & \res & \res & \res & \res \\
+A7 & AGA after B2 only & \res & \res & \res & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Robustness to Artifacts}
+\paragraph{Real artifacts}
+Table~\ref{tab:strata} reports the primary comparison on the artifact strata of the ISIC 2018 test set. \TBD{State whether criteria (i) and (ii) of Section~\ref{sec:stats} are met, with the numbers.}
+
+\begin{table}[!t]
+\centering
+\caption{A4 versus A1 on the artifact strata of the ISIC 2018 test set (Dice). $\Delta$: A4 minus A1 in Dice points with a 95\% bootstrap interval; $p_{\mathrm{Holm}}$ within the primary family.}
+\label{tab:strata}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccccc}
+\toprule
+Stratum & $n$ & A1 & A4 & $\Delta$ [95\% CI] & $p_{\mathrm{Holm}}$ \\
+\midrule
+Any artifact & \res & \res & \res & \res & \res \\
+\quad Hair & \res & \res & \res & \res & \res \\
+\quad Ruler & \res & \res & \res & \res & \res \\
+\quad Marker ink & \res & \res & \res & \res & \res \\
+\quad Dark corner & \res & \res & \res & \res & \res \\
+Artifact-free & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Synthetic severity sweep}
+Fig.~\ref{fig:severity} shows the Dice score as artifacts of each type become more severe. \TBD{Describe the slope of each model; remember that the generator was seen in training by A1s--A4 and A7.}
+
+\begin{figure}[!t]
+\centering
+\placeholderfig{4.2cm}{Severity sweep: Dice (y) against severity 0--4 (x), one panel per artifact type and one for the mix; lines for A1, A1s, A4 and the best external baseline, mean $\pm$ 95\% bootstrap interval. Produce from make\_severity\_sets.py + eval.py.}
+\caption{Dice under synthetic artifacts of increasing severity on the ISIC 2018 test set (held-out generator seeds). Severity 0 is the unmodified image.}
+\label{fig:severity}
+\end{figure}
+
+\subsection{External Validation}
+Table~\ref{tab:external} applies the models trained on ISIC 2018 to the external sets without retraining. \TBD{Report the transfer gap of each model and whether the ranking holds.}
+
+\begin{table}[!t]
+\centering
+\caption{External test sets (models trained on ISIC 2018, no retraining). Dice / HD95 (px).}
+\label{tab:external}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+Model & PH2 & HAM10000 test & \TBD{DDI (FEDD)} \\
+\midrule
+A1 & \res & \res & \res \\
+A1s & \res & \res & \res \\
+Best external baseline & \res & \res & \res \\
+\textbf{A4} & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Artifact Maps}
+Table~\ref{tab:arthead} evaluates the artifact head itself and Fig.~\ref{fig:qualitative} shows its maps next to the lesion predictions. \TBD{Report which types the head finds reliably, how often it fires on clean images, and how the supervised maps (A4) differ from the unsupervised ones (A3).}
+
+\begin{table}[!t]
+\centering
+\caption{Artifact head on ISIC 2018 validation images with held-out synthetic artifacts: IoU per type and the share of pixels predicted as artifact on the unmodified images, averaged over the four types (``Clean act.'').}
+\label{tab:arthead}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lccccc}
+\toprule
+Row & Hair & Ruler & Ink & Corner & Clean act. (\%) \\
+\midrule
+A2 (auxiliary) & \res & \res & \res & \res & \res \\
+A3 (unsupervised) & \res & \res & \res & \res & \res \\
+\textbf{A4} & \res & \res & \res & \res & \res \\
+A7 & \res & \res & \res & \res & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[!t]
+\centering
+\placeholderfig{4.5cm}{Qualitative results on ISIC 2018 test images chosen by a fixed rule (first images of each artifact stratum): image, A1 mask, A4 mask, ground truth, predicted artifact map $\bar{A}$. Produce with viz\_artifact\_maps.py.}
+\caption{Qualitative results. \TBD{Selection rule and columns.}}
+\label{fig:qualitative}
+\end{figure*}
+
+\subsection{Computational Cost}
+\begin{table}[!t]
+\centering
+\caption{Cost of the deployed (fused) models at $640\times640$. Latency: forward pass only, batch 1, FP16, mean of 200 runs on \TBD{GPU}.}
+\label{tab:cost}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+Model & Params (M) & GFLOPs & Latency (ms) \\
+\midrule
+YOLO26n-seg & 2.689 & 8.96 & \res \\
+A1 (P2 + CBAM) & 2.738 & 11.21 & \res \\
+\textbf{A4 (ArtiGate-YOLO)} & 2.759 & 12.26 & \res \\
+\bottomrule
+\end{tabular}
+\end{table}
+The artifact head and the AGA blocks add 0.021~M parameters and 1.05~GFLOPs to A1 (Table~\ref{tab:cost}). \TBD{Latency difference and frames per second.}

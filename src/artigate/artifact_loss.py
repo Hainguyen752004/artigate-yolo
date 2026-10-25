@@ -14,7 +14,9 @@ from ultralytics.nn.tasks import SegmentationModel
 
 from artigate.modules import ArtifactHead
 
-POSITIVE, NEGATIVE = 0.75, 0.25
+# Thresholds on the artifact channels after /255 (codes 255 present, 0 absent, 114 = 0.447 unknown).
+# Absent must stay clearly below the unknown code: mix-up of absent with unknown (~57 = 0.22) is unknown.
+POSITIVE, NEGATIVE = 0.75, 0.1
 
 
 def artifact_targets(art, size):
@@ -73,7 +75,10 @@ class ArtiGateLoss:
         if logits is None:
             loss = total.new_zeros(())
         elif art is None or self.weight == 0:
-            loss = logits.sum() * 0.0  # keeps the head in the graph (DDP) without training it
+            # Keep the head in the graph (DDP) without training it. Not in the validator: it runs the
+            # model in fp16 without autocast, where a sum of ~10^5 logits near -4.6 overflows to -inf
+            # and -inf * 0 is nan (val/art_loss was nan). Reduce in float32 when a graph is needed.
+            loss = logits.float().mean() * 0.0 if torch.is_grad_enabled() else total.new_zeros(())
         else:
             loss = artifact_loss(logits, art) * self.weight
         batch_size = batch["img"].shape[0]

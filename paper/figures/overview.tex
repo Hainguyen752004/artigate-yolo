@@ -1,0 +1,80 @@
+% Fig. 1: ArtiGate-YOLO overview (top) and the AGA block (bottom). TikZ, no external files.
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Stealth[length=1.6mm]},
+  blk/.style={draw, rounded corners=1.5pt, minimum height=6mm, minimum width=11mm, align=center, fill=white},
+  bb/.style={blk, fill=gray!10},
+  new/.style={blk, fill=orange!18, draw=orange!70!black, thick},
+  head/.style={blk, fill=blue!8},
+  map/.style={draw=orange!70!black, fill=orange!8, minimum size=5mm, inner sep=0pt},
+  lab/.style={font=\tiny, text=black!70},
+  line/.style={->, thick, black!70},
+  aline/.style={->, thick, orange!70!black, dashed},
+]
+% ---------------------------------------------------------------- backbone row
+\node[bb] (in) {RGB\\$640^2$};
+\node[bb, right=3mm of in] (c0) {Conv$\times$2\\C3k2};
+\node[lab, anchor=north west] at ($(c0.south)+(0.7mm,0)$) {B2, $s{=}4$};
+\node[new, right=5mm of c0] (aga2) {AGA};
+\node[bb, right=3mm of aga2] (c1) {Conv\\C3k2};
+\node[lab, below=0mm of c1] {B3, $s{=}8$};
+\node[new, right=3mm of c1] (aga3) {AGA};
+\node[bb, right=3mm of aga3] (c2) {Conv, C3k2,\\SPPF, C2PSA};
+\node[lab, below=0mm of c2] {P4, P5};
+\node[head, right=4mm of c2] (neck) {PAN neck\\P2--P5};
+\node[head, right=3mm of neck] (seg) {Segment26\\boxes P2--P5\\protos P3--P5};
+\draw[line] (in) -- (c0);
+\draw[line] (c0) -- (aga2);
+\draw[line] (aga2) -- (c1);
+\draw[line] (c1) -- (aga3);
+\draw[line] (aga3) -- (c2);
+\draw[line] (c2) -- (neck);
+\draw[line] (neck) -- (seg);
+\draw[line] (aga2.north) -- ++(0,3mm) -| ($(neck.north)+(-3mm,0)$);
+\draw[line] (aga3.north) -- ++(0,1.5mm) -| ($(neck.north)+(0mm,0)$);
+% ---------------------------------------------------------------- artifact head
+\node[new, below=9mm of c0] (ah) {Artifact head\\$1{\times}1$, $3{\times}3$, $3{\times}3$, $1{\times}1$};
+\draw[line] (c0.south) -- (ah.north);
+\node[map, right=6mm of ah, label={[lab]below:hair}] (m1) {};
+\node[map, right=1mm of m1, label={[lab]below:ruler}] (m2) {};
+\node[map, right=1mm of m2, label={[lab]below:ink}] (m3) {};
+\node[map, right=1mm of m3, label={[lab]below:corner}] (m4) {};
+\node[fit=(m1)(m4), inner sep=1pt] (maps) {};
+\draw[line] (ah) -- (m1);
+\node[blk, right=5mm of m4, minimum width=9mm] (amax) {$\max_k$\\$\bar{A}$};
+\draw[line] (m4) -- (amax);
+\draw[aline] (amax.north) |- ($(aga2.south)+(0,-4.5mm)$) -- (aga2.south);
+\draw[aline] (amax.north) |- ($(aga3.south)+(0,-4.5mm)$) -- (aga3.south);
+\node[lab, align=left, right=3mm of amax] (loss) {$\mathcal{L}_{\mathrm{art}}$: BCE + Dice on\\labelled cells (synthetic\\masks, flags, rules)};
+\draw[->, thick, blue!60!black] ($(m4.south)+(0,-2.5mm)$) -- ++(0,-2mm) -| (loss.south);
+\end{tikzpicture}
+
+\vspace{2mm}
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Stealth[length=1.6mm]},
+  blk/.style={draw, rounded corners=1.5pt, minimum height=6mm, align=center, fill=white},
+  op/.style={draw, circle, inner sep=0.5pt, minimum size=4.5mm},
+  line/.style={->, thick, black!70},
+  aline/.style={->, thick, orange!70!black, dashed},
+]
+\node (F) {$F$};
+\node[blk, right=3mm of F] (ca) {Channel attention\\(shared with CBAM)};
+\node[blk, right=4mm of ca] (pool) {$[\mathrm{Avg}_C F';\ \mathrm{Max}_C F';\ \bar{A}]$};
+\node[blk, right=3mm of pool] (conv) {conv $7{\times}7$\\$\sigma$};
+\node[op, right=3mm of conv] (mul1) {$\odot$};
+\node[op, right=6mm of mul1] (mul2) {$\odot$};
+\node[right=3mm of mul2] (out) {$F''$};
+\node[blk, below=4mm of mul2, fill=orange!8, draw=orange!70!black] (gate) {$\max(0,\,1-\beta\bar{A})$};
+\node[below=5mm of pool, text=orange!70!black] (A) {$\bar{A}$ (resized by max pooling)};
+\draw[line] (F) -- (ca);
+\draw[line] (ca) -- node[above, font=\tiny]{$F'$} (pool);
+\draw[line] (pool) -- (conv);
+\draw[line] (conv) -- (mul1);
+\draw[line] (mul1) -- (mul2);
+\draw[line] (mul2) -- (out);
+\draw[line] (ca.north) -- ++(0,3mm) -| (mul1.north);
+\draw[aline] (A.north) -- (pool.south);
+\draw[aline] (A.east) -| (gate.west) ;
+\draw[line] (gate) -- (mul2);
+\end{tikzpicture}

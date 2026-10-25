@@ -70,3 +70,30 @@ def test_eval_artifact_head_runs_on_a_checkpoint(yolo_dataset, tmp_path, load_sc
     load_script("eval_artifact_head").main(["--weights", str(weights), "--data", str(yolo_dataset), "--split", "val",
                                             "--n", "1", "--device", "cpu"])
     assert "dark_corner" in capsys.readouterr().out
+
+
+def test_compare_family_averages_seeds_and_applies_holm(tmp_path, load_script):
+    rng = np.random.default_rng(3)
+    base = rng.uniform(0.7, 0.9, 60)
+    for seed, shift in enumerate((-0.01, 0.0, 0.01)):  # per-seed noise that averages out
+        write_metrics(tmp_path / f"a1_s{seed}.csv", base + shift)
+        write_metrics(tmp_path / f"a4_s{seed}.csv", base + 0.03 + shift + rng.normal(0, 0.002, 60))
+        write_metrics(tmp_path / f"a0_s{seed}.csv", base + shift + rng.normal(0, 0.002, 60))
+    with (tmp_path / "flags.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["image_id", "hair", "ruler"])
+        for index in range(60):
+            writer.writerow([f"img{index}", int(index < 30), int(index % 3 == 0)])
+    spec = lambda name: f"{name}=" + ",".join(str(tmp_path / f"{name.lower()}_s{s}.csv") for s in range(3))  # noqa: E731
+    report = load_script("compare_family").main([
+        "--reference", spec("A1"), "--model", spec("A4"), "--model", spec("A0"), "--metrics", "dice",
+        "--strata", str(tmp_path / "flags.csv"), "--subsets", "all,any_artifact,no_artifact",
+        "--n-boot", "200", "--out", str(tmp_path / "primary")])
+    rows = {(r["model"], r["subset"]): r for r in report["rows"]}
+    assert rows[("A4", "all")]["mean_difference"] == pytest.approx(0.03, abs=0.002)
+    assert rows[("A4", "any_artifact")]["n"] == 40 and rows[("A4", "no_artifact")]["n"] == 20
+    assert all(r["family_size"] == 6 and r["p_holm"] >= r["wilcoxon_p"] for r in report["rows"])
+    assert rows[("A4", "all")]["p_holm"] < 1e-6
+    assert rows[("A4", "all")]["wins"] == 60 and rows[("A4", "all")]["losses"] == 0
+    assert report["models"]["A1"]["per_seed_means"]["dice"][0] < report["models"]["A1"]["per_seed_means"]["dice"][2]
+    assert (tmp_path / "primary.md").is_file() and (tmp_path / "primary.json").is_file()

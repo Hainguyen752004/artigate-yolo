@@ -1,0 +1,82 @@
+All analyses below were fixed before the test sets were scored; the choices that are still open are marked and must be settled on the validation data. Code, configuration files and data split manifests are in the project repository~\TBD{URL}.
+
+\subsection{Datasets}
+Table~\ref{tab:datasets} lists the data. ISIC 2018 Task~1~\cite{codella2019isic2018} is the primary benchmark with its official training, validation and test partitions. HAM10000~\cite{tschandl2018ham10000} with the lesion masks distributed alongside it is used as a second benchmark; because several images show the same lesion, it is split by \texttt{lesion\_id}, so that no lesion appears in two partitions. PH2~\cite{mendonca2013ph2} serves as external test data. \TBD{DDI images with the FEDD marker and ruler masks~\cite{daneshjou2022ddi,carrion2023fedd} are added as a clinical, multi-skin-tone test set if access is granted.} Before scoring, every test set is checked against the training data for repeated ISIC identifiers and for near-duplicate images (difference hash with thumbnail correlation, Supplementary Section~S13); \TBD{n} pairs were found and removed from the test side.
+
+\begin{table}[!t]
+\centering
+\caption{Datasets. Image counts refer to the released data; the HAM10000 split is ours and grouped by lesion.}
+\label{tab:datasets}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.27\columnwidth}@{}}
+\toprule
+Dataset & Images (train / val / test) & Use \\
+\midrule
+ISIC 2018 Task 1~\cite{codella2019isic2018} & 2,594 / 100 / 1,000 & Primary benchmark \\
+HAM10000~\cite{tschandl2018ham10000} & 10,015 images of 7,470 lesions; split \TBD{x / y / z} by lesion & Second benchmark \\
+PH2~\cite{mendonca2013ph2} & 200 (test only) & External test \\
+\TBD{DDI + FEDD masks}~\cite{daneshjou2022ddi,carrion2023fedd} & \TBD{n} (test only) & \TBD{Clinical, skin tones} \\
+\midrule
+Artifact labels, ISIC 2018 train~\cite{bissoto2020debiasing} & 2,594, image level & Absent pixels for training \\
+Artifact labels, ISIC 2018 test (ours) & 1,000, image level & Strata for evaluation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Artifact labels for the test set}
+Image-level labels exist only for the ISIC 2018 training images. We therefore labelled the presence of hair, ruler, marker ink and dark corners on the 1,000 ISIC 2018 test images ourselves with a keyboard tool, before any model was evaluated on them. Two annotators labelled a common subset of 200 images to estimate agreement with Cohen's kappa~\cite{cohen1960kappa} (\TBD{$\kappa$ per type}); the remaining images were split between them \TBD{and disagreements were resolved by discussion}. These labels define the evaluation strata: images with and without each artifact type, and artifact-free images with none of the four. They are never used for training and will be released.
+
+\subsection{Preprocessing}
+All images are letterboxed to a $640\times640$ canvas with grey padding, and ground-truth masks are transformed with the same geometry using nearest-neighbour interpolation; the transform of every image is stored so results can be mapped back to the original resolution. Two input views from the conference version are kept for the baselines: the plain view (v1) and a view that crops the bright field of view, removes hair with DullRazor (black-hat with a $17\times17$ cross element, threshold 10, Telea inpainting of radius 3~\cite{lee1997dullrazor,telea2004inpainting}) and applies grey-world colour constancy~\cite{buchsbaum1980grayworld} (v7). ArtiGate-YOLO uses the plain view only.
+
+\subsection{Compared Models and Ablations}
+Table~\ref{tab:ablation_design} defines the ablation rows. All rows share the same training code, schedule and initialization; they differ only in the listed component. Row A1s trains the CBAM model on the same images with synthetic artifacts but without artifact supervision; it separates the benefit of seeing artifacts as data augmentation from the benefit of supervising and using an artifact map. Row A3 lets the segmentation loss train the artifact head through the AGA blocks, giving an artifact map learned without artifact labels as in~\cite{singh2025dualresolution,gong2026artifactaware}; with the detached map of A4 and $\lambda=0$ the head would receive no gradient at all. In A5 the head receives only absent labels, so it shows what the supervision does without any positive signal. A6 is an analysis of A4 by artifact type and severity rather than a separate model.
+
+\begin{table}[!t]
+\centering
+\caption{Ablation design. ``Synth.'': synthetic artifacts composited during training; ``$\mathcal{L}_{\mathrm{art}}$'': artifact loss. All rows: YOLO26n-seg + P2, same schedule, three seeds.}
+\label{tab:ablation_design}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabularx}{\columnwidth}{@{}l>{\raggedright\arraybackslash}Xccc@{}}
+\toprule
+Row & Attention after B2/B3 & Head & Synth. & $\mathcal{L}_{\mathrm{art}}$ \\
+\midrule
+A0 & none & -- & -- & -- \\
+A1 & CBAM (conference model~\cite{iceeis2026own}) & -- & -- & -- \\
+A1s & CBAM & -- & \checkmark & -- \\
+A2 & CBAM; artifact head as auxiliary task & \checkmark & \checkmark & \checkmark \\
+A3 & AGA, map learned from $\mathcal{L}_{\mathrm{seg}}$ only (not detached) & \checkmark & \checkmark & -- \\
+\textbf{A4} & \textbf{AGA (proposed)} & \checkmark & \checkmark & \checkmark \\
+A5 & AGA, no synthetic artifacts & \checkmark & -- & \checkmark \\
+A7 & AGA after B2 only, CBAM after B3 & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+External baselines are the stock YOLO26n-seg without the P2 level, the CBAM model trained on the DullRazor view (v7) and on both views as in the conference paper, U-Net~\cite{ronneberger2015unet}, the lightweight MALUNet~\cite{ruan2022malunet} and EGE-UNet~\cite{ruan2023egeunet}, and nnU-Net in its 2D configuration~\cite{isensee2021nnunet}. \TBD{FSSM-ResNet~\cite{raikhankyzy2026fssm} and the artifact-aware segmenter~\cite{gong2026artifactaware} are included if their code becomes available; otherwise their published values are listed in the Supplementary Material without a matched comparison.} Non-YOLO baselines are trained with their published recipes on the same splits and evaluated with the same code \TBD{(details in Supplementary Section~S13)}.
+
+\subsection{Training}
+All YOLO models are trained with Ultralytics 8.4.13 and PyTorch \TBD{version} on \TBD{GPU} with one schedule: 200 epochs with early stopping after 100 epochs without improvement, batch size 16, input size 640, AdamW with an initial learning rate of 0.002, $\beta_1=0.9$ and no bias warm-up, cosine learning-rate decay with 3 warm-up epochs, mosaic with the last 10 epochs without it, mix-up 0.1, copy-paste 0.1, rotations up to $\pm180^\circ$, scaling $\pm0.5$, horizontal and vertical flips with probability 0.5, mask ratio 2 and deterministic mode. Apart from the optimizer, the schedule comes from the final run of the conference version. That run used MuSGD with a learning rate of 0.01, chosen by the Ultralytics automatic rule, which selects MuSGD above 10,000 iterations of the nominal batch of 64 and AdamW below; one-view ISIC 2018 training (8,200 iterations) falls below the threshold, while two-view and HAM10000 training exceed it. We fix AdamW so that every row, including the two-view baseline, uses the same optimizer. Weights of the COCO-pretrained YOLO26n-seg are transferred to every model through an explicit layer map that covers the backbone and the top-down neck and skips inserted layers (CBAM, AGA and the artifact head); the number of transferred tensors is logged for each run. The checkpoint with the best validation fitness is evaluated. Each row is trained with seeds 0, 1 and 2.
+
+Unlike the conference version, the pretrained weights are now loaded inside the trainer. In the conference code they were loaded before Ultralytics rebuilt the model from its configuration, so that model was in fact trained from scratch; the A1 results reported here are therefore new runs and differ from the conference paper.
+
+\subsection{Evaluation}
+\paragraph{Segmentation metrics}
+Predicted instances are collapsed into one lesion mask per image by keeping the instance with the highest confidence (``top-1'', the conference rule; the union of instances with confidence of at least 0.25 is reported as a sensitivity analysis) \TBD{confirm the rule before scoring the test set}. On the $640\times640$ canvas we compute Dice, IoU, the 95th percentile Hausdorff distance (HD95, pixels) and the boundary F1 score with a tolerance of 0.75\% of the image diagonal~\cite{csurka2013bf}; Supplementary Section~S1 gives the definitions and the handling of empty masks. Mask mAP50 and mAP50--95 are reported as computed by Ultralytics.
+
+\paragraph{Robustness}
+Robustness is measured in three ways: (i) the metrics on the artifact strata of the ISIC 2018 test set, which involve real artifacts only; (ii) a severity sweep in which the test images receive synthetic artifacts of one type, or a mix of types, at severities 1 to 4, drawn with fixed per-image seeds rather than the random seeds of training; and (iii) the external test sets. Because the sweep uses the generator seen in training, it can favour models trained with that generator; conclusions about robustness rest on (i) and (iii).
+
+\paragraph{Artifact head}
+The artifact maps are evaluated on the validation images with held-out synthetic artifacts: IoU and Dice per type against the exact masks, and the fraction of pixels predicted as artifact on the unmodified images (mean over the four types). Real artifacts already present in an image count as false positives in this test, so it understates precision and is used to compare models only.
+
+\paragraph{Computational cost}
+Parameters and GFLOPs are computed for the fused models at $640\times640$. Latency is the mean forward time over 200 runs after 30 warm-up runs at batch size 1 in FP16 on \TBD{GPU}, without mask decoding.
+
+\subsection{Statistical Analysis}\label{sec:stats}
+The unit of analysis is the image. For each model and image, the metric is averaged over the three seeds; tables report the mean of these per-image values and, separately, the mean $\pm$ standard deviation of the three per-seed means. Paired comparisons use the per-image differences between two models: the mean difference with a 95\% percentile bootstrap interval over images (2,000 resamples~\cite{efron1993bootstrap}) and a two-sided Wilcoxon signed-rank test~\cite{wilcoxon1945} in which zero differences are discarded. Holm's procedure~\cite{holm1979} controls the family-wise error within each family of comparisons: the primary family (A4 versus A1 on the artifact strata), the ablation family (each row versus A4 on the full test set) and the external-baseline family. The severity sweep is reported descriptively.
+
+\paragraph{Pre-specified success criteria}
+ArtiGate-YOLO is considered better than its CBAM counterpart if (i) on test images with at least one artifact, the mean paired Dice difference A4$-$A1 is positive with a Holm-adjusted $p<0.05$ and a bootstrap interval that excludes zero, and (ii) on artifact-free images, the lower bound of the 95\% interval of A4$-$A1 is above $-\delta$ with $\delta=$~\TBD{0.5 Dice points; fix before scoring the test set}. Results are reported whether or not the criteria are met.

@@ -1,0 +1,64 @@
+% ArtiGate-YOLO - main manuscript prototype.
+%
+% This file compiles with the standard IEEEtran journal class so the draft can be built anywhere.
+% For submission, move the content into the official IEEE Access LaTeX template
+% (https://ieeeaccess.ieee.org/authors/preparing-your-article/ or the "IEEE Access LaTeX Template" on
+% Overleaf): keep its front matter (\history, \doi, \address, \corresp, \tfootnote, \EOD) and
+% \input the same files from sections/. See paper/README.md.
+%
+% Every value that does not exist yet is written as \TBD{...} (red in the PDF). No result in this
+% draft is real; fill them from runs/ only.
+
+\documentclass[journal]{IEEEtran}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds}
+\usepackage[hidelinks]{hyperref}
+\input{macros}
+
+\begin{document}
+
+\title{ArtiGate-YOLO: Artifact-Supervised Gated Attention for Robust Real-Time Skin Lesion Segmentation}
+
+\author{\TBD{Author 1},~\TBD{Author 2}%
+\thanks{\TBD{Affiliation, address, e-mail, funding. Corresponding author.}}}
+
+\markboth{IEEE Access (draft)}{\TBD{Authors}: ArtiGate-YOLO}
+
+\maketitle
+
+\input{sections/abstract}
+
+\section{Introduction}\label{sec:intro}
+\input{sections/introduction}
+
+\section{Related Work}\label{sec:related}
+\input{sections/related_work}
+
+\section{Method}\label{sec:method}
+\input{sections/method}
+
+\section{Experimental Protocol}\label{sec:protocol}
+\input{sections/protocol}
+
+\section{Results}\label{sec:results}
+\input{sections/results}
+
+\section{Discussion}\label{sec:discussion}
+\input{sections/discussion}
+
+\section{Conclusion}\label{sec:conclusion}
+\input{sections/conclusion}
+
+\input{sections/declarations}
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

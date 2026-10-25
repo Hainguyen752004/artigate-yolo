@@ -8,7 +8,8 @@ from artigate.modules import AGA, CBAM, ArtifactHead, register_modules, resize_a
 from artigate.transfer import stock_layer_map
 
 MODELS = Path(__file__).resolve().parents[1] / "configs" / "models"
-ARTIGATE_YAMLS = ["yolo26n-seg-p2-cbam-arthead.yaml", "yolo26n-seg-p2-artigate.yaml", "yolo26n-seg-p2-artigate-p2only.yaml"]
+ARTIGATE_YAMLS = ["yolo26n-seg-p2-cbam-arthead.yaml", "yolo26n-seg-p2-artigate.yaml", "yolo26n-seg-p2-artigate-p2only.yaml",
+                  "yolo26n-seg-p2-artigate-unsup.yaml"]
 
 
 def test_aga_starts_as_cbam():

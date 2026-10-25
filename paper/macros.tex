@@ -1,0 +1,13 @@
+% Shared macros for the main manuscript and the Supplementary Material.
+\usepackage{xcolor}
+% \TBD{...} marks every value that does not exist yet (results, decisions, citations to check).
+% Search the .tex files for "\TBD" before submission; the PDF shows them in red.
+\newcommand{\TBD}[1]{\textcolor{red}{[#1]}}
+\newcommand{\res}{\TBD{--}} % one result cell that the experiments will fill
+\newcommand{\etal}{\textit{et~al.}}
+\newcommand{\method}{ArtiGate-YOLO}
+\newcommand{\aga}{AGA}
+\newcommand{\Abar}{\bar{A}}
+% Placeholder for a figure that will be produced from the runs.
+\newcommand{\placeholderfig}[2]{%
+  \fbox{\parbox[c][#1][c]{0.94\linewidth}{\centering\small\textcolor{red}{#2}}}}

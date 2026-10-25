@@ -3,7 +3,7 @@
 Every ablation row (A0-A7, A1s) uses the same ArtiGateTrainer. Synthetic artifacts and artifact
 targets are switched on by an ``artigate:`` block in the dataset YAML (configs/data/isic2018_art.yaml);
 the artifact loss only exists for model YAMLs with an ArtifactHead.
-    A3 = --model configs/models/yolo26n-seg-p2-artigate.yaml --art-lambda 0
+    A3 = --model configs/models/yolo26n-seg-p2-artigate-unsup.yaml   (map not detached, lambda 0)
     A5 = --model configs/models/yolo26n-seg-p2-artigate.yaml --p-synth 0
 """
 import argparse
@@ -75,7 +75,7 @@ def parse_args(argv=None):
     parser.add_argument("--workers", type=_nonnegative_int, default=None)
     parser.add_argument("--fraction", type=_fraction, default=None, help="train on a fraction of the data (smoke tests)")
     parser.add_argument("--art-lambda", type=float, default=None,
-                        help="override art_loss.lambda of the model YAML (0 = no artifact supervision, row A3)")
+                        help="override art_loss.lambda of the model YAML (0 = no artifact supervision)")
     parser.add_argument("--p-synth", type=float, default=None,
                         help="override artigate.p_synth of the dataset YAML (0 = no synthetic artifacts, row A5)")
     return parser.parse_args(argv)

@@ -6,7 +6,8 @@ signed-rank p-value per metric. Ultralytics mAP is a point estimate and is not b
 
 With --strata (image-level artifact flags: image_id,hair,ruler,marker,dark_corner with 1/0, e.g.
 from scripts/label_artifacts.py) the same report is repeated for the images with and without each
-artifact type and for the images with none. View suffixes (_v1) are ignored when matching ids.
+artifact type, for the images with any artifact and for the images with none. View suffixes (_v1)
+are ignored when matching ids.
 """
 import argparse
 import csv
@@ -72,6 +73,7 @@ def strata_subsets(strata_csv, image_ids):
         subsets[f"with_{name}"] = [i for i in labelled if flags[_sample_id(i)][name] == "1"]
         subsets[f"without_{name}"] = [i for i in labelled if flags[_sample_id(i)][name] == "0"]
     subsets["no_artifact"] = [i for i in labelled if all(flags[_sample_id(i)][n] == "0" for n in types)]
+    subsets["any_artifact"] = [i for i in labelled if any(flags[_sample_id(i)][n] == "1" for n in types)]
     return subsets, len(labelled)
 
 
