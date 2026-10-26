@@ -25,7 +25,9 @@ import re
 import cv2
 
 TYPES = ("hair", "ruler", "marker", "dark_corner")
-KEYS = {ord("h"): 0, ord("r"): 1, ord("m"): 2, ord("d"): 3}
+KEYS = {ord(c): k for k, c in enumerate("hrmd")}
+KEYS.update({ord(c.upper()): k for k, c in enumerate("hrmd")})  # Caps Lock on
+BAR = 34  # status bar height, drawn above the image so it hides nothing
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +35,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _base_id(name):
     return re.sub(r"_v\d+$", "", name)
+
+
+def render(img, cur, i, n):
+    """The image with the status bar added on top (the image pixels are left untouched)."""
+    vis = cv2.copyMakeBorder(img, BAR, 0, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+    txt = "  ".join(f"[{'x' if cur[k] else ' '}] {t}" for k, t in enumerate(TYPES))
+    cv2.putText(vis, f"{i + 1}/{n}  {txt}", (8, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+    return vis
 
 
 def image_list(images=None, manifest=None, split="test", raw_root="data/raw", ids=None):
@@ -89,11 +99,7 @@ def main():
         r = a.size / max(img.shape[:2])
         img = cv2.resize(img, None, fx=r, fy=r, interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR)
         while True:
-            vis = img.copy()
-            txt = "  ".join(f"[{'x' if cur[k] else ' '}] {t}" for k, t in enumerate(TYPES))
-            cv2.rectangle(vis, (0, 0), (vis.shape[1], 34), (0, 0, 0), -1)
-            cv2.putText(vis, f"{i + 1}/{len(files)}  {txt}", (8, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-            cv2.imshow("label_artifacts  h r m d | Enter next | b back | q quit", vis)
+            cv2.imshow("label_artifacts  h r m d | Enter next | b back | q quit", render(img, cur, i, len(files)))
             key = cv2.waitKey(0) & 0xFF
             if key in KEYS:
                 cur[KEYS[key]] ^= 1
@@ -102,10 +108,10 @@ def main():
                 save()
                 i += 1
                 break
-            elif key == ord("b"):
+            elif key in (ord("b"), ord("B")):
                 i = max(0, i - 1)
                 break
-            elif key == ord("q"):
+            elif key in (ord("q"), ord("Q")):
                 save()
                 cv2.destroyAllWindows()
                 print(f"saved {len(labels)} labels to {out}")

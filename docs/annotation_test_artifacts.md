@@ -39,6 +39,12 @@ Không gắn nhãn bọt gel, viền gel, miếng dán. Một ảnh có thể c�
 
    Người 2 gắn độc lập, không xem nhãn của người 1.
 
+   Nếu người 2 làm trên máy riêng, không có repo: `python scripts/make_annotator_bundle.py --out <thư mục>`
+   tạo sẵn 200 ảnh test và 20 ảnh train để tập, ở đúng cỡ người 1 thấy trong công cụ (cạnh dài 900 px,
+   JPEG chất lượng 95), kèm bản sao `label_artifacts.py`. Người 2 chạy công cụ với `--images` trên thư mục
+   đó. Người 1 gắn nhãn cùng 20 ảnh tập (`--images <thư mục>/images/practice_20 --out runs/annotation_practice_a1.csv`)
+   để hai người so và bàn trước khi người 2 gắn nhãn tập con.
+
 3. **Độ đồng thuận và nhãn cuối:**
 
    ```bash

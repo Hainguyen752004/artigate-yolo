@@ -22,6 +22,16 @@ def test_image_list_from_manifest_and_subset(tmp_path, load_script):
     assert [i for i, _ in subset] == ["ISIC_2"]
 
 
+def test_status_bar_does_not_cover_the_image(load_script):
+    import numpy as np
+
+    tool = load_script("label_artifacts")
+    img = np.full((60, 80, 3), 200, np.uint8)
+    vis = tool.render(img, [1, 0, 0, 1], 0, 5)
+    assert vis.shape == (60 + tool.BAR, 80, 3) and (vis[tool.BAR:] == img).all()
+    assert tool.KEYS[ord("H")] == tool.KEYS[ord("h")] == 0
+
+
 def test_agreement_kappa_disagreements_and_final_labels(tmp_path, load_script):
     script = load_script("artifact_agreement")
     header = ["image_id", "hair", "ruler", "marker", "dark_corner"]
