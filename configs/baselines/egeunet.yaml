@@ -3,10 +3,12 @@
 #   (network, model_config, criterion, batch_size, epochs, opt/AdamW, sch/CosineAnnealingLR, threshold,
 #   train_transformer, test_transformer), train.py (val batch 1, scheduler and checkpoint loop) and
 #   engine.py (scheduler.step() once per epoch, no AMP, no gradient clipping).
-# Changes allowed by CLAUDE.md ("Baseline ngoài YOLO"), nothing else:
-#   - input: the exported 640x640 canvas (view v1) of configs/data/isic2018.yaml; myResize therefore
-#     targets 640x640 (official 256x256), which leaves the canvas unchanged;
-#   - checkpoint: best mean val Dice at threshold 0.5 (official: lowest val loss);
+# Changes allowed by CLAUDE.md ("Baseline ngoài YOLO", v0.20), nothing else:
+#   - input: the exported 640x640 canvas (view v1) of configs/data/isic2018.yaml, brought to the official
+#     256x256 by the recipe's myResize (the letterbox geometry is kept);
+#   - the probability map is resized back to the 640 canvas (bilinear) before the 0.5 threshold, both for
+#     checkpoint selection and for scoring;
+#   - checkpoint: best mean val Dice on the canvas (official: lowest val loss);
 #   - seeds 0, 1, 2 (official: 42); a batch that does not fit the GPU is halved and recorded.
 # The official config sets datasets = 'isic17'; the ISIC 2018 statistics ('isic18', same values as
 # MALUNet's config) are used because the training set is ISIC 2018.
@@ -31,5 +33,5 @@ augment:
   hflip: 0.5
   vflip: 0.5
   rotation: {p: 0.5, degrees: [0, 360]}
-input_size: [640, 640]
+input_size: [256, 256]  # official input_size_h / input_size_w
 num_workers: 8  # official 0; only changes speed

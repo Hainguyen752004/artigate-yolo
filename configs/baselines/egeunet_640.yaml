@@ -1,0 +1,39 @@
+# Sensitivity run (CLAUDE.md, v0.20): configs/baselines/egeunet.yaml with the 640x640 canvas as input
+# (myResize leaves the canvas unchanged); everything else identical. Run name egeunet640_s0, seed 0 only.
+# EGE-UNet recipe, transcribed from the official code at commit f52ba30c6bf7d0ca479c2c9d4a3cbda999f49d3a:
+#   https://github.com/JCruan519/EGE-UNet/blob/f52ba30c6bf7d0ca479c2c9d4a3cbda999f49d3a/configs/config_setting.py
+#   (network, model_config, criterion, batch_size, epochs, opt/AdamW, sch/CosineAnnealingLR, threshold,
+#   train_transformer, test_transformer), train.py (val batch 1, scheduler and checkpoint loop) and
+#   engine.py (scheduler.step() once per epoch, no AMP, no gradient clipping).
+# Changes allowed by CLAUDE.md ("Baseline ngoài YOLO", v0.20), nothing else:
+#   - input: the exported 640x640 canvas (view v1) of configs/data/isic2018.yaml, brought to the official
+#     256x256 by the recipe's myResize (the letterbox geometry is kept);
+#   - the probability map is resized back to the 640 canvas (bilinear) before the 0.5 threshold, both for
+#     checkpoint selection and for scoring;
+#   - checkpoint: best mean val Dice on the canvas (official: lowest val loss);
+#   - seeds 0, 1, 2 (official: 42); a batch that does not fit the GPU is halved and recorded.
+# The official config sets datasets = 'isic17'; the ISIC 2018 statistics ('isic18', same values as
+# MALUNet's config) are used because the training set is ISIC 2018.
+model:
+  name: egeunet
+  source: {repo: https://github.com/JCruan519/EGE-UNet, commit: f52ba30c6bf7d0ca479c2c9d4a3cbda999f49d3a, file: models/egeunet.py}
+  kwargs: {num_classes: 1, input_channels: 3, c_list: [8, 16, 24, 32, 48, 64], bridge: true, gt_ds: true}
+loss: {name: GT_BceDiceLoss, wb: 1, wd: 1}  # BCE + Dice on the output, plus deep supervision weighted 0.1..0.5
+optimizer: {name: AdamW, lr: 0.001, betas: [0.9, 0.999], eps: 1.0e-8, weight_decay: 0.01, amsgrad: false}
+scheduler: {name: CosineAnnealingLR, T_max: 50, eta_min: 1.0e-5}  # per epoch; with 300 epochs the cosine repeats
+epochs: 300
+batch: 8
+val_batch: 1
+amp: false
+threshold: 0.5
+# myNormalize('isic18'): (x - mean) / std with train (157.561, 26.706) or test (149.034, 32.022)
+# statistics, then per-image min-max scaling to [0, 255]; myToTensor does not divide by 255.
+normalize: {datasets: isic18}
+# myRandomHorizontalFlip(0.5), myRandomVerticalFlip(0.5), myRandomRotation(0.5, [0, 360]): the rotation
+# angle is drawn once when the transform is built, so one angle serves the whole run (official behaviour).
+augment:
+  hflip: 0.5
+  vflip: 0.5
+  rotation: {p: 0.5, degrees: [0, 360]}
+input_size: [640, 640]  # official 256x256; this run tests the canvas resolution
+num_workers: 8  # official 0; only changes speed

@@ -2,6 +2,7 @@
 import math
 import random
 
+import cv2
 import numpy as np
 from PIL import Image
 import torch
@@ -53,6 +54,18 @@ class CanvasSegDataset(Dataset):
 
     def stems(self):
         return [p.stem for p, _ in self.items]
+
+
+def canvas_mask(prob, shape, threshold):
+    """Binary mask on the canvas: the probability map resized to ``shape`` (bilinear), then >= threshold.
+
+    Used for checkpoint selection (train_seg_baseline.validate) and for scoring (eval_seg_baseline), so
+    both see the same prediction (CLAUDE.md: probabilities go back to the 640 canvas before the threshold).
+    """
+    prob = np.asarray(prob, dtype=np.float32)
+    if prob.shape != tuple(shape):
+        prob = cv2.resize(prob, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+    return prob >= threshold
 
 
 @torch.inference_mode()

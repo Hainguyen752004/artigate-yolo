@@ -1,0 +1,38 @@
+# Sensitivity run (CLAUDE.md, v0.20): configs/baselines/malunet.yaml with the 640x640 canvas as input
+# (myResize leaves the canvas unchanged); everything else identical. Run name malunet640_s0, seed 0 only.
+# MALUNet recipe, transcribed from the official code at commit e184b47de99b3fda6b7880fcf3ff99b806308d2b:
+#   https://github.com/JCruan519/MALUNet/blob/e184b47de99b3fda6b7880fcf3ff99b806308d2b/configs/config_setting.py
+#   (network, model_config, datasets = 'isic18', criterion, batch_size, epochs, opt/AdamW,
+#   sch/CosineAnnealingLR, threshold, train_transformer, test_transformer), train.py and engine.py
+#   (scheduler.step() once per epoch; amp = False in the config).
+# The repository has no licence: the model file is fetched by scripts/fetch_malunet.py, and the loss and
+# transforms come from EGE-UNet's Apache-licensed utils.py, whose code is identical to MALUNet's.
+# Changes allowed by CLAUDE.md ("Baseline ngoài YOLO", v0.20), nothing else:
+#   - input: the exported 640x640 canvas (view v1), brought to the official
+#     256x256 by the recipe's myResize (the letterbox geometry is kept);
+#   - the probability map is resized back to the 640 canvas (bilinear) before the 0.5 threshold, both for
+#     checkpoint selection and for scoring;
+#   - checkpoint: best mean val Dice on the canvas (official: lowest val loss);
+#   - seeds 0, 1, 2 (official: 42); a batch that does not fit the GPU is halved and recorded.
+model:
+  name: malunet
+  source: {repo: https://github.com/JCruan519/MALUNet, commit: e184b47de99b3fda6b7880fcf3ff99b806308d2b, file: models/malunet.py}
+  kwargs: {num_classes: 1, input_channels: 3, c_list: [8, 16, 24, 32, 48, 64], split_att: fc, bridge: true}
+loss: {name: BceDiceLoss, wb: 1, wd: 1}
+optimizer: {name: AdamW, lr: 0.001, betas: [0.9, 0.999], eps: 1.0e-8, weight_decay: 0.01, amsgrad: false}
+scheduler: {name: CosineAnnealingLR, T_max: 50, eta_min: 1.0e-5}  # per epoch; with 300 epochs the cosine repeats
+epochs: 300
+batch: 8
+val_batch: 1
+amp: false
+threshold: 0.5
+# myNormalize('isic18'): (x - mean) / std with train (157.561, 26.706) or test (149.034, 32.022)
+# statistics, then per-image min-max scaling to [0, 255]; myToTensor does not divide by 255.
+normalize: {datasets: isic18}
+# The rotation angle is drawn once when the transform is built (official behaviour).
+augment:
+  hflip: 0.5
+  vflip: 0.5
+  rotation: {p: 0.5, degrees: [0, 360]}
+input_size: [640, 640]  # official 256x256; this run tests the canvas resolution
+num_workers: 8  # official 0; only changes speed

@@ -7,7 +7,8 @@
 
 Prediction (CLAUDE.md, "Baseline ngoài YOLO"): foreground probability >= 0.5 on the 640x640 canvas, no TTA,
 no post-processing. A checkpoint from train_seg_baseline.py carries its recipe (normalisation, input
-size). nnU-Net predictions are the label PNGs of nnUNetv2_predict --disable_tta with checkpoint_final.pth,
+size); its probability map (256x256 for the main runs) is resized to the canvas (bilinear) before the
+threshold, exactly as train_seg_baseline.validate does when it picks the checkpoint. nnU-Net predictions are the label PNGs of nnUNetv2_predict --disable_tta with checkpoint_final.pth,
 named <image stem>.png (argmax of the two softmax classes = foreground probability >= 0.5); --checkpoint
 identifies the model in the scoring log.
 
@@ -29,7 +30,7 @@ import numpy as np
 from PIL import Image
 import torch
 
-from artigate.baselines.data import canvas_items, predict_probability
+from artigate.baselines.data import canvas_items, canvas_mask, predict_probability
 from artigate.baselines.models import build_model
 from artigate.baselines.recipe import build_transform
 from artigate.data.masks import read_mask
@@ -91,10 +92,7 @@ class CheckpointPredictor:
     def __call__(self, image_path, truth):
         image = np.array(Image.open(image_path).convert("RGB"))
         tensor, _ = self.transform((image, truth[..., None].astype(np.float64)))
-        prob = predict_probability(self.model, tensor, self.device)
-        if prob.shape != truth.shape:  # recipes at another input size: back to the canvas
-            prob = cv2.resize(prob, (truth.shape[1], truth.shape[0]), interpolation=cv2.INTER_LINEAR)
-        return prob >= self.threshold
+        return canvas_mask(predict_probability(self.model, tensor, self.device), truth.shape, self.threshold)
 
 
 def write_rows(path, rows):

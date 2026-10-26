@@ -5,9 +5,12 @@
 #   (scheduler.step() once per epoch; amp = False in the config).
 # The repository has no licence: the model file is fetched by scripts/fetch_malunet.py, and the loss and
 # transforms come from EGE-UNet's Apache-licensed utils.py, whose code is identical to MALUNet's.
-# Changes allowed by CLAUDE.md ("Baseline ngoài YOLO"), nothing else:
-#   - input: the exported 640x640 canvas (view v1); myResize targets 640x640 (official 256x256);
-#   - checkpoint: best mean val Dice at threshold 0.5 (official: lowest val loss);
+# Changes allowed by CLAUDE.md ("Baseline ngoài YOLO", v0.20), nothing else:
+#   - input: the exported 640x640 canvas (view v1), brought to the official
+#     256x256 by the recipe's myResize (the letterbox geometry is kept);
+#   - the probability map is resized back to the 640 canvas (bilinear) before the 0.5 threshold, both for
+#     checkpoint selection and for scoring;
+#   - checkpoint: best mean val Dice on the canvas (official: lowest val loss);
 #   - seeds 0, 1, 2 (official: 42); a batch that does not fit the GPU is halved and recorded.
 model:
   name: malunet
@@ -29,5 +32,5 @@ augment:
   hflip: 0.5
   vflip: 0.5
   rotation: {p: 0.5, degrees: [0, 360]}
-input_size: [640, 640]
+input_size: [256, 256]  # official input_size_h / input_size_w
 num_workers: 8  # official 0; only changes speed

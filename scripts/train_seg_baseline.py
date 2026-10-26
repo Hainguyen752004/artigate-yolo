@@ -6,9 +6,10 @@
 The recipe (loss, optimizer, schedule, epochs, batch, augmentation, normalisation) is
 configs/baselines/<model>.yaml, transcribed from the official code (CLAUDE.md, "Baseline ngoài YOLO").
 Training images are images/train and masks/train of --data (default configs/data/isic2018.yaml, view v1),
-validation images/val. After every epoch the 100 val images are predicted (foreground probability >= 0.5)
-and scored with artigate.metrics.binary_metrics; best.pt keeps the epoch with the highest mean Dice
-(the earlier epoch on ties). If the recipe's batch does not fit the GPU it is halved until it does, and the
+validation images/val; the recipe's myResize brings the canvas to its input size (256x256). After every
+epoch the 100 val images are predicted, the probability map is resized back to the 640 canvas (bilinear)
+and thresholded at 0.5, and scored against the canvas mask with artigate.metrics.binary_metrics; best.pt
+keeps the epoch with the highest mean Dice (the earlier epoch on ties). If the recipe's batch does not fit the GPU it is halved until it does, and the
 batch used is recorded in provenance.json.
 
 Writes runs/baselines/<model>_s<seed>/{best.pt, last.pt, history.csv, provenance.json}. A folder with
@@ -29,11 +30,12 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from artigate.baselines.data import CanvasSegDataset
+from artigate.baselines.data import CanvasSegDataset, canvas_mask
 from artigate.baselines.models import MODELS, THIRD_PARTY, build_model, split_output, upstream_utils
 from artigate.baselines.recipe import (
     build_criterion, build_optimizer, build_scheduler, build_transform, compute_loss, load_recipe,
 )
+from artigate.data.masks import read_mask
 from artigate.metrics import METRIC_NAMES, binary_metrics
 from artigate.provenance import environment, git_state, sha256_file, write_json
 
@@ -121,14 +123,20 @@ def fitting_batch(args, batch, device):
 
 @torch.no_grad()
 def validate(model, dataset, criterion, threshold, device):
-    """Mean val loss and mean per-image metrics; one image at a time, as the official val loader (batch 1)."""
+    """Mean val loss and mean per-image metrics; one image at a time, as the official val loader (batch 1).
+
+    The loss is computed at the recipe's input size, as upstream. The metrics are computed on the 640
+    canvas: the probability map is resized back (bilinear), thresholded and compared with the canvas mask,
+    the same prediction eval_seg_baseline.py scores.
+    """
     model.eval()
     losses, rows = [], []
     for index in range(len(dataset)):
         image, mask = dataset[index]
         aux, prob = split_output(model(image.unsqueeze(0).to(device)))
         losses.append(compute_loss(criterion, aux, prob, mask.unsqueeze(0).to(device)).item())
-        rows.append(binary_metrics(prob[0, 0].cpu().numpy() >= threshold, mask[0].numpy() > 0.5))
+        truth = read_mask(dataset.items[index][1])
+        rows.append(binary_metrics(canvas_mask(prob[0, 0].float().cpu().numpy(), truth.shape, threshold), truth))
     return float(np.mean(losses)), {m: float(np.mean([r[m] for r in rows])) for m in METRIC_NAMES}
 
 

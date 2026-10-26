@@ -20,5 +20,5 @@ augment:
   hflip: 0.5
   vflip: 0.5
   rotation: {p: 0.5, degrees: [0, 360]}
-input_size: [640, 640]
+input_size: [256, 256]  # EGE-UNet recipe: canvas brought to 256x256, probabilities back to 640
 num_workers: 8

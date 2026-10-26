@@ -46,18 +46,31 @@ def test_malunet_runs_on_canvas_sized_inputs():
 
 
 def test_recipe_transform_matches_the_official_pipeline():
-    recipe = load_recipe("egeunet")[0]
     image = np.random.default_rng(0).integers(0, 256, (640, 640, 3)).astype(np.uint8)
     mask = np.zeros((640, 640, 1))
     mask[100:300, 200:400] = 1
-    test_transform, angle = build_transform(recipe, train=False)
-    tensor, target = test_transform((image, mask))
-    assert angle is None and tensor.shape == (3, 640, 640) and target.shape == (1, 640, 640)
+    # 640 recipe (sensitivity run): myResize leaves the canvas unchanged
+    tensor, target = build_transform(load_recipe("egeunet", path=ROOT / "configs/baselines/egeunet_640.yaml")[0], train=False)[0]((image, mask))
+    assert tensor.shape == (3, 640, 640) and torch.equal(target, torch.tensor(mask).permute(2, 0, 1))
     # myNormalize ends with a per-image min-max to [0, 255]; myToTensor does not divide by 255
     assert float(tensor.min()) == pytest.approx(0.0) and float(tensor.max()) == pytest.approx(255.0)
-    assert torch.equal(target, torch.tensor(mask).permute(2, 0, 1))
-    _, angle = build_transform(recipe, train=True)
+    # main recipes: the canvas is brought to the official 256x256
+    for model in ("unet", "malunet", "egeunet"):
+        test_transform, angle = build_transform(load_recipe(model)[0], train=False)
+        tensor, target = test_transform((image, mask))
+        assert angle is None and tensor.shape == (3, 256, 256) and target.shape == (1, 256, 256)
+    _, angle = build_transform(load_recipe("egeunet")[0], train=True)
     assert 0 <= angle <= 360  # drawn once per run, as myRandomRotation does
+
+
+def test_canvas_mask_brings_probabilities_back_to_the_canvas():
+    from artigate.baselines.data import canvas_mask
+
+    prob = np.zeros((256, 256), np.float32)
+    prob[64:192, 64:192] = 1.0
+    mask = canvas_mask(prob, (640, 640), 0.5)
+    assert mask.shape == (640, 640) and mask[320, 320] and not mask[100, 100]
+    assert abs(int(mask.sum()) - 320 * 320) < 4 * 320  # the square scales by 2.5 up to its bilinear edge
 
 
 def test_canvas_dataset_reads_exported_images_and_masks(yolo_dataset):
@@ -66,8 +79,9 @@ def test_canvas_dataset_reads_exported_images_and_masks(yolo_dataset):
     transform, _ = build_transform(load_recipe("egeunet")[0], train=False)
     dataset = CanvasSegDataset(yolo_dataset, "train", transform)
     image, mask = dataset[0]
-    assert len(dataset) == 4 and image.shape == (3, 640, 640) and image.dtype == torch.float32
-    assert mask.shape == (1, 640, 640) and set(torch.unique(mask).tolist()) <= {0.0, 1.0} and mask.sum() > 0
+    assert len(dataset) == 4 and image.shape == (3, 256, 256) and image.dtype == torch.float32
+    # myResize is bilinear for the mask too (upstream), so edges become fractional
+    assert mask.shape == (1, 256, 256) and 0 <= float(mask.min()) and float(mask.max()) <= 1 and mask.sum() > 0
     assert len(CanvasSegDataset(yolo_dataset, "train", transform, fraction=0.5, seed=1)) == 2
 
 
@@ -91,6 +105,12 @@ def test_training_writes_the_run_files_and_eval_writes_the_eval_format(yolo_data
     assert out.name == f"egeunet_s0_{yolo_dataset.parent.name}_val"  # data.yaml is named by its folder
     rows = list(csv.DictReader((out / "per_image_metrics.csv").open(encoding="utf-8")))
     assert list(rows[0]) == ["image_id", *METRIC_NAMES] and len(rows) == 1
+    # the checkpoint was chosen on the metric eval scores: 256-pixel probabilities back on the 640 canvas
+    assert provenance["recipe"]["input_size"] == [256, 256]
+    best = max(history, key=lambda r: float(r["val_dice"]))
+    summary = json.loads((out / "eval_summary.json").read_text(encoding="utf-8"))
+    assert summary["per_image_mean"]["dice"] == pytest.approx(float(best["val_dice"]), abs=1e-9)
+    assert summary["per_image_mean"]["hd95"] == pytest.approx(float(best["val_hd95"]), abs=1e-9)
     # the test split stays locked until the test-set artifact labels are committed
     if not (ROOT / "data" / "splits" / "isic2018_test_artifacts.csv").is_file():
         with pytest.raises(SystemExit, match="locked"):
@@ -132,12 +152,17 @@ def test_nnunet_predictions_are_scored_from_label_pngs(yolo_dataset, tmp_path, l
 
 def test_run_baselines_keeps_the_order_skips_finished_and_resumes_interrupted(tmp_path, load_script, capsys):
     run_baselines = load_script("run_baselines")
-    assert [n for n, _, _ in run_baselines.plan(["unet", "egeunet"], [0, 1])] == ["egeunet_s0", "egeunet_s1", "unet_s0", "unet_s1"]
+    assert [n for n, *_ in run_baselines.plan(["unet", "egeunet"], [0, 1], sensitivity=False)] == [
+        "egeunet_s0", "egeunet_s1", "unet_s0", "unet_s1"]
+    full = run_baselines.plan(["egeunet", "malunet", "unet"], [0, 1, 2])
+    assert [n for n, *_ in full][-2:] == ["malunet640_s0", "egeunet640_s0"] and len(full) == 11
+    assert full[-1][3].name == "egeunet_640.yaml" and load_recipe(path=full[-1][3])[0]["input_size"] == [640, 640]
     (tmp_path / "egeunet_s0").mkdir()
     (tmp_path / "egeunet_s0" / "provenance.json").write_text("{}", encoding="utf-8")
     (tmp_path / "egeunet_s1").mkdir()
     (tmp_path / "egeunet_s1" / "last.pt").write_bytes(b"interrupted")
-    run_baselines.main(["--models", "egeunet", "--seeds", "0", "1", "2", "--project", str(tmp_path), "--dry-run"])
+    run_baselines.main(["--models", "egeunet", "--seeds", "0", "1", "2", "--project", str(tmp_path), "--dry-run",
+                        "--no-sensitivity"])
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].endswith("egeunet_s0: finished, skipped")
     assert lines[1].endswith("--resume") and "--resume" not in lines[2]

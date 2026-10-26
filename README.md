@@ -152,13 +152,13 @@ Quy trình đã khóa trong CLAUDE.md. Các baseline chạy trong venv riêng (`
 
 ```bash
 python scripts/fetch_malunet.py
-python scripts/run_baselines.py --project <runs>/baselines       # EGE-UNet s0-2 → MALUNet s0-2 → U-Net s0-2
+python scripts/run_baselines.py --project <runs>/baselines       # EGE-UNet s0-2 → MALUNet s0-2 → U-Net s0-2 → malunet640_s0, egeunet640_s0
 python scripts/eval_seg_baseline.py --weights <runs>/baselines/egeunet_s0/best.pt --split val --project <runs>/eval
 python scripts/prepare_nnunet.py dataset                          # rồi plan_and_preprocess / train / predict (xem docstring)
 python scripts/benchmark.py --baselines unet malunet egeunet --half --device 0
 ```
 
-Mỗi run ghi `best.pt` (Dice val trung bình cao nhất, ngưỡng 0,5), `last.pt` (chạy tiếp được bằng `--resume`), `history.csv` và `provenance.json`. Batch không vừa GPU thì giảm một nửa; batch đã dùng được ghi trong provenance. `eval_seg_baseline.py` dùng chung khóa test và sổ chấm với `eval.py` (`src/artigate/scoring.py`), và ghi `per_image_metrics.csv` cùng định dạng để `compare_family.py` đọc thẳng.
+U-Net, MALUNet và EGE-UNet nhận canvas thu về 256×256 như recipe gốc (v0.20); xác suất được phóng về canvas 640 (bilinear) rồi mới cắt ngưỡng 0,5, cả khi chọn checkpoint lẫn khi chấm (`canvas_mask`). Hai run độ nhạy `malunet640_s0`, `egeunet640_s0` dùng `configs/baselines/<model>_640.yaml` (input 640). Mỗi run ghi `best.pt` (Dice val trung bình trên canvas cao nhất), `last.pt` (chạy tiếp được bằng `--resume`), `history.csv` và `provenance.json`. Batch không vừa GPU thì giảm một nửa; batch đã dùng được ghi trong provenance. `eval_seg_baseline.py` dùng chung khóa test và sổ chấm với `eval.py` (`src/artigate/scoring.py`), và ghi `per_image_metrics.csv` cùng định dạng để `compare_family.py` đọc thẳng.
 
 ## Khác với code ICEEIS
 
