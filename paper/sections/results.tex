@@ -24,13 +24,13 @@ A1, two views (v1 + v7)~\cite{iceeis2026own} & \res & \res & \res & \res & \res 
 U-Net~\cite{ronneberger2015unet} & \res & \res & \res & \res & -- & -- & \res & \res \\
 MALUNet~\cite{ruan2022malunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
 EGE-UNet~\cite{ruan2023egeunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
-nnU-Net 2D~\cite{isensee2021nnunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
+nnU-Net 2D$^{\dagger}$~\cite{isensee2021nnunet} & \res & \res & \res & \res & -- & -- & \res & \res \\
 \midrule
 \textbf{ArtiGate-YOLO (A4)} & \res & \res & \res & \res & \res & \res & 2.759 & 12.26 \\
 \bottomrule
 \end{tabular}
 \par\vspace{2pt}
-\parbox{\textwidth}{\scriptsize $^{\ast}$Excludes the DullRazor and colour-constancy preprocessing, which runs outside the network. \TBD{Latency per image (FP16, batch 1) is reported in Table~\ref{tab:cost}.}}
+\parbox{\textwidth}{\scriptsize $^{\ast}$Excludes the DullRazor and colour-constancy preprocessing, which runs outside the network. $^{\dagger}$One run (one fold with the official training and validation images); no standard deviation over seeds. Non-YOLO models: one probability map binarized at 0.5; mAP is not defined for them. \TBD{Latency per image (FP16, batch 1) is reported in Table~\ref{tab:cost}.}}
 \end{table*}
 
 \subsection{Ablation}
@@ -97,7 +97,7 @@ Table~\ref{tab:external} applies the models trained on ISIC 2018 to the external
 
 \begin{table}[!t]
 \centering
-\caption{External test sets (models trained on ISIC 2018, no retraining). Dice / HD95 (px). $^{\ast}$One image per lesion.}
+\caption{External test sets (models trained on ISIC 2018, no retraining). Dice / HD95 (px). Best external baseline: the external baseline with the highest validation Dice, fixed before test scoring (\TBD{name}). $^{\ast}$One image per lesion.}
 \label{tab:external}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -164,7 +164,7 @@ A7 & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res \\
 \subsection{Computational Cost}
 \begin{table}[!t]
 \centering
-\caption{Cost of the deployed (fused) models at $640\times640$. Latency: forward pass only, batch 1, FP16, mean of 200 runs on \TBD{GPU}.}
+\caption{Cost of the deployed (fused) models at $640\times640$. Latency: forward pass only (nnU-Net: sliding-window prediction of one image), batch 1, FP16, mean of 200 runs on \TBD{GPU}.}
 \label{tab:cost}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -174,6 +174,10 @@ Model & Params (M) & GFLOPs & Latency (ms) \\
 \midrule
 YOLO26n-seg & 2.689 & 8.96 & \res \\
 A1 (P2 + CBAM) & 2.738 & 11.21 & \res \\
+U-Net & \res & \res & \res \\
+MALUNet & \res & \res & \res \\
+EGE-UNet & \res & \res & \res \\
+nnU-Net 2D & \res & \res & \res \\
 \textbf{A4 (ArtiGate-YOLO)} & 2.759 & 12.26 & \res \\
 \bottomrule
 \end{tabular}

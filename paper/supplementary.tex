@@ -33,9 +33,9 @@
 \large ArtiGate-YOLO: Artifact-Supervised Gated Attention for Robust Real-Time Skin Lesion Segmentation}
 \author{Nguyen Chi Hai$^{1}$, Le Huu Son Hai$^{1}$, Nguyen Minh Phuc$^{1}$, Nguyen Thai Anh$^{1}$,\\
 Tran Thien Thanh$^{2}$, Vo Nguyen Quoc Bao$^{1}$ and Ngo Hoang Tu$^{1,*}$\\[4pt]
-\small $^{1}$\,Faculty of Information Technology, Van Lang School of Technology, Van Lang University, Ho Chi Minh City 70000, Vietnam\\
-\small $^{2}$\,Department of Computer Engineering, Ho Chi Minh City University of Transport, Ho Chi Minh City 710372, Vietnam\\
-\small $^{*}$\,Corresponding author: tu.nh@vlu.edu.vn}
+\footnotesize $^{1}$\,Faculty of Information Technology, Van Lang School of Technology, Van Lang University, Ho Chi Minh City 70000, Vietnam\\
+\footnotesize $^{2}$\,Department of Computer Engineering, Ho Chi Minh City University of Transport, Ho Chi Minh City 710372, Vietnam\\
+\footnotesize $^{*}$\,Corresponding author: tu.nh@vlu.edu.vn}
 \date{}
 
 \begin{document}
@@ -68,7 +68,7 @@ the 95th percentile of the pooled symmetric boundary distances (MedPy convention
 If both masks are empty, Dice, IoU and BF1 are 1 and HD95 is 0. If exactly one is empty, Dice, IoU and BF1 are 0 and HD95 is the canvas diagonal (905.1~px), the largest possible distance. Every ISIC 2018 test image contains a lesion, so an empty prediction always receives these worst-case values; their number per model is reported in Table~\ref{tab:s-empty}.
 
 \paragraph{From instances to one mask}
-The models predict lesion instances. Instance masks are produced at input resolution (\texttt{retina\_masks}) and binarized at probability 0.5. The \emph{top-1} rule keeps the mask of the instance with the highest confidence among all predictions with confidence $\ge0.001$; it is the rule of the conference paper and the primary analysis. The \emph{union} rule merges every instance with confidence $\ge0.25$; it is a sensitivity analysis (Section~\ref{sec:s-sensitivity}). Both rules and the non-inferiority margin ($\delta=0.5$ Dice points) were fixed on 25 October 2026, before any ISIC 2018 test image was scored.
+The models predict lesion instances. Instance masks are produced at input resolution (\texttt{retina\_masks}) and binarized at probability 0.5. The \emph{top-1} rule keeps the mask of the instance with the highest confidence among all predictions with confidence $\ge0.001$; it is the rule of the conference paper and the primary analysis. The \emph{union} rule merges every instance with confidence $\ge0.25$; it is a sensitivity analysis (Section~\ref{sec:s-sensitivity}). Both rules and the non-inferiority margin ($\delta=0.5$ Dice points) were fixed on 25 October 2026, before any ISIC 2018 test image was scored. The non-YOLO baselines predict one foreground probability map, binarized at 0.5 on the canvas; the two rules do not apply to them. Their protocol (Section~\ref{sec:s-impl}) was fixed on 26 October 2026, before any baseline was trained.
 
 \paragraph{Detection metrics}
 Mask mAP50 and mAP50--95 are computed by the Ultralytics 8.4.13 validator on the same split and are point estimates without intervals.
@@ -251,7 +251,7 @@ A7 & \res & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
 
 \begin{table}[H]
 \centering
-\caption{External baselines versus A4 on the ISIC 2018 test set. Family: the baselines of the main comparison, per metric.}
+\caption{External baselines versus A4 on the ISIC 2018 test set. Family: the baselines of the main comparison, per metric. nnU-Net: one run.}
 \label{tab:s-external-family}
 \footnotesize
 \setlength{\tabcolsep}{3.5pt}
@@ -323,7 +323,7 @@ Artifact-free & \res & \res & \res & \res & \res & \res & \res & \res & \res \\
 
 \begin{table}[H]
 \centering
-\caption{Secondary stratified comparisons (Dice): A4 versus A1s (does supervision add to artifact augmentation?) and A4 versus the best external baseline. Holm within each comparison over the six strata.}
+\caption{Secondary stratified comparisons (Dice): A4 versus A1s (does supervision add to artifact augmentation?) and A4 versus the best external baseline (highest validation Dice, fixed before test scoring). Holm within each comparison over the six strata.}
 \label{tab:s-strata-secondary}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -479,7 +479,8 @@ Without the 46 test duplicates of training images & \res & \res & \res & \res \\
 Without all 50 flagged test images & \res & \res & \res & \res \\
 Labels of annotator 1 only (common subset) & \res & \res & \res & \res \\
 Labels of annotator 2 only (common subset) & \res & \res & \res & \res \\
-\TBD{$\lambda=0.5$ / $2$ (if run)} & \res & \res & \res & \res \\
+A4 with $\lambda=0.5$, seed 0, against A1 seed 0 & \res & \res & \res & \res \\
+A4 with $\lambda=2$, seed 0, against A1 seed 0 & \res & \res & \res & \res \\
 \bottomrule
 \end{tabular}
 \pairedcaveat{A1}
@@ -505,8 +506,14 @@ A2: A1 + artifact head & 2.759 & 12.26 & \res & \res \\
 \textbf{A4: ArtiGate-YOLO} & 2.759 & 12.26 & \res & \res \\
 A3, A5: as A4 & 2.759 & 12.26 & \res & \res \\
 A7: AGA after B2 only & 2.759 & 12.26 & \res & \res \\
+\midrule
+U-Net & \res & \res & \res & \res \\
+MALUNet & \res & \res & \res & \res \\
+EGE-UNet & \res & \res & \res & \res \\
+nnU-Net 2D$^{\dagger}$ & \res & \res & \res & \res \\
 \bottomrule
 \end{tabular}
+\par\vspace{2pt}{\footnotesize\noindent $^{\dagger}$Latency of the sliding-window prediction of one canvas image without test-time augmentation.\par}
 \end{table}
 
 \noindent Compared with A1, the artifact head and the two AGA blocks add 0.021~M parameters, or 0.8\% of A4, and 1.05~GFLOPs. Nearly all of it is the head, which runs at stride~4 on a $160\times160$ grid: A2, which adds only the head to A1, already has the cost of A4, and replacing CBAM by AGA adds one input channel to each $7\times7$ convolution and the scalar $\beta$.
@@ -640,7 +647,25 @@ DDI (FEDD subset) & 0 & 0 & 0 \\
 \end{table}
 
 \subsection{Non-YOLO baselines}
-\TBD{For U-Net, MALUNet, EGE-UNet and nnU-Net 2D: code source and commit, input size, augmentation, epochs, optimizer, and how their outputs are mapped to the $640\times640$ canvas for scoring with the same metric code.}
+All four baselines are trained on the 2,594 official training images and select their checkpoint on the 100 official validation images, on the same $640\times640$ letterboxed canvas (images and masks) as the YOLO models, without synthetic artifacts or preprocessing views. MALUNet and EGE-UNet keep the loss, optimizer, learning-rate schedule, number of epochs, batch size, augmentation and input normalization of their official code; U-Net (the original architecture with padded convolutions and batch normalization) uses the EGE-UNet recipe. The only changes are the input size (the canvas instead of the published resize) and the checkpoint, which is the one with the best mean validation Dice for all three; if a recipe's batch does not fit in GPU memory at $640\times640$, the batch is halved and the change is recorded. nnU-Net~v2 receives the canvas images as an RGB dataset, plans and preprocesses its 2D configuration with default settings, and trains one fold of its default trainer whose split lists the official training and validation images; its final checkpoint is used, as is its default. Predictions of all four are foreground probabilities on the canvas, binarized at 0.5 with no test-time augmentation and no post-processing, and scored by the same metric code and test-scoring log as the YOLO models (\texttt{scripts/eval\_seg\_baseline.py}). The baselines were trained after the YOLO runs from a separate commit \TBD{(tag)}.
+
+\begin{table}[H]
+\centering
+\caption{Training settings of the non-YOLO baselines as taken from their code (\TBD{fill from the configuration files}).}
+\label{tab:s-baselines}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}Xcc@{}}
+\toprule
+Model & Code (commit) & Loss, optimizer, schedule & Epochs & Batch \\
+\midrule
+U-Net & \TBD{} & \TBD{EGE-UNet recipe} & \TBD{} & \TBD{} \\
+MALUNet & \TBD{official repository, commit} & \TBD{} & \TBD{} & \TBD{} \\
+EGE-UNet & \TBD{official repository, commit} & \TBD{} & \TBD{} & \TBD{} \\
+nnU-Net 2D & \TBD{nnunetv2 version} & default trainer, one fold & \TBD{} & \TBD{} \\
+\bottomrule
+\end{tabularx}
+\par\vspace{2pt}{\footnotesize\noindent Seeds 0, 1, 2 for U-Net, MALUNet and EGE-UNet; one run of nnU-Net. Augmentation and normalization as in each code base: \TBD{list}.\par}
+\end{table}
 
 % =================================================================================================
 \section{Dataset Inventory and Split Manifests}\label{sec:s-data}
