@@ -8,7 +8,7 @@ Table~\ref{tab:main} compares ArtiGate-YOLO with the baselines on the ISIC 2018 
 
 \begin{table*}[!t]
 \centering
-\caption{Segmentation on the ISIC 2018 Task 1 test set (1,000 images, $640\times640$ canvas, top-1 mask rule). Metrics are per-image means over three seeds; $\pm$ is the standard deviation of the three per-seed means. Parameters and GFLOPs are for the fused models at $640\times640$. $\downarrow$: lower is better.}
+\caption{Segmentation on the ISIC 2018 Task 1 test set (1,000 images, $640\times640$ canvas, top-1 mask rule). Metrics are per-image means over three seeds; $\pm$ is the standard deviation of the three per-seed means. Parameters and GFLOPs are for the fused models at their input size: $640\times640$ for the YOLO models, $256\times256$ for U-Net, MALUNet and EGE-UNet, and one patch for nnU-Net. $\downarrow$: lower is better.}
 \label{tab:main}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -164,7 +164,7 @@ A7 & \res~/~\res & \res~/~\res & \res~/~\res & \res~/~\res \\
 \subsection{Computational Cost}
 \begin{table}[!t]
 \centering
-\caption{Cost of the deployed (fused) models at $640\times640$. Latency: forward pass only (nnU-Net: sliding-window prediction of one image), batch 1, FP16, mean of 200 runs on \TBD{GPU}.}
+\caption{Cost of the deployed (fused) models at their input size ($640\times640$; U-Net, MALUNet and EGE-UNet: $256\times256$; nnU-Net: one patch for parameters and GFLOPs, sliding-window prediction of one canvas image for latency). Latency: forward pass only, batch 1, FP16, mean of 200 runs on \TBD{GPU}.}
 \label{tab:cost}
 \footnotesize
 \setlength{\tabcolsep}{4pt}

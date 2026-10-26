@@ -488,7 +488,7 @@ A4 with $\lambda=2$, seed 0, against A1 seed 0 & \res & \res & \res & \res \\
 
 % =================================================================================================
 \section{Computational Characteristics}\label{sec:s-cost}
-Parameters and GFLOPs are measured on the fused models (convolution and batch normalization merged) for one $640\times640$ input with one class. Latency: \texttt{scripts/benchmark.py}, forward pass only, batch 1, FP16, 30 warm-up and 200 timed runs, on \TBD{GPU, driver, CUDA, PyTorch}.
+Parameters and GFLOPs are measured on the fused models (convolution and batch normalization merged) for one $640\times640$ input with one class; U-Net, MALUNet and EGE-UNet at their $256\times256$ input, nnU-Net for one patch. Latency: \texttt{scripts/benchmark.py}, forward pass only, batch 1, FP16, 30 warm-up and 200 timed runs, on \TBD{GPU, driver, CUDA, PyTorch}.
 
 \begin{table}[H]
 \centering
@@ -647,24 +647,24 @@ DDI (FEDD subset) & 0 & 0 & 0 \\
 \end{table}
 
 \subsection{Non-YOLO baselines}
-All four baselines are trained on the 2,594 official training images and select their checkpoint on the 100 official validation images, on the same $640\times640$ letterboxed canvas (images and masks) as the YOLO models, without synthetic artifacts or preprocessing views. MALUNet and EGE-UNet keep the loss, optimizer, learning-rate schedule, number of epochs, batch size, augmentation and input normalization of their official code; U-Net (the original architecture with padded convolutions and batch normalization) uses the EGE-UNet recipe. The only changes are the input size (the canvas instead of the published resize) and the checkpoint, which is the one with the best mean validation Dice for all three; if a recipe's batch does not fit in GPU memory at $640\times640$, the batch is halved and the change is recorded. nnU-Net~v2 receives the canvas images as an RGB dataset, plans and preprocesses its 2D configuration with default settings, and trains one fold of its default trainer whose split lists the official training and validation images; its final checkpoint is used, as is its default. Predictions of all four are foreground probabilities on the canvas, binarized at 0.5 with no test-time augmentation and no post-processing, and scored by the same metric code and test-scoring log as the YOLO models (\texttt{scripts/eval\_seg\_baseline.py}). The baselines were trained after the YOLO runs from a separate commit \TBD{(tag)}.
+All four baselines are trained on the 2,594 official training images and select their checkpoint on the 100 official validation images, starting from the same $640\times640$ letterboxed canvas (images and masks) as the YOLO models, without synthetic artifacts or preprocessing views. MALUNet and EGE-UNet keep the loss, optimizer, learning-rate schedule, number of epochs, batch size, augmentation and input normalization of their official code; U-Net (the original architecture with padded convolutions and batch normalization) uses the EGE-UNet recipe. Each recipe's own resize brings the canvas to the published input of $256\times256$, so the image keeps the letterbox geometry of the canvas; predicted probability maps are resized back to the canvas with bilinear interpolation before binarization, both for checkpoint selection and for scoring. The other changes are the checkpoint, which is the one with the best mean validation Dice on the canvas for all three (the official code keeps the lowest validation loss), and the seeds; if a recipe's batch does not fit in GPU memory, the batch is halved and the change is recorded. The rotation augmentation is kept as implemented in the official code, which draws one angle when the transform is built, so one angle serves a whole run; the angle is recorded. As a sensitivity analysis, MALUNet and EGE-UNet are also trained once (seed 0) with the full $640\times640$ canvas as input (\TBD{validation and test Dice at both sizes}). nnU-Net~v2 receives the canvas images as an RGB dataset, plans and preprocesses its 2D configuration with default settings, and trains one fold of its default trainer whose split lists the official training and validation images; its final checkpoint is used, as is its default. Predictions of all four are foreground probabilities on the canvas, binarized at 0.5 with no test-time augmentation and no post-processing, and scored by the same metric code and test-scoring log as the YOLO models (\texttt{scripts/eval\_seg\_baseline.py}). The baselines were trained after the YOLO runs from a separate commit \TBD{(tag)}.
 
 \begin{table}[H]
 \centering
-\caption{Training settings of the non-YOLO baselines as taken from their code (\TBD{fill from the configuration files}).}
+\caption{Training settings of the non-YOLO baselines as taken from their code (\texttt{configs/baselines/}).}
 \label{tab:s-baselines}
 \footnotesize
 \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}Xcc@{}}
 \toprule
 Model & Code (commit) & Loss, optimizer, schedule & Epochs & Batch \\
 \midrule
-U-Net & \TBD{} & \TBD{EGE-UNet recipe} & \TBD{} & \TBD{} \\
-MALUNet & \TBD{official repository, commit} & \TBD{} & \TBD{} & \TBD{} \\
-EGE-UNet & \TBD{official repository, commit} & \TBD{} & \TBD{} & \TBD{} \\
-nnU-Net 2D & \TBD{nnunetv2 version} & default trainer, one fold & \TBD{} & \TBD{} \\
+U-Net & this work (padded, BN, 64 base channels) & BCE + Dice; recipe of EGE-UNet & 300 & 8 \\
+MALUNet & JCruan519/MALUNet, e184b47 & BCE + Dice; AdamW & 300 & 8 \\
+EGE-UNet & JCruan519/EGE-UNet, f52ba30 & BCE + Dice with deep supervision; AdamW & 300 & 8 \\
+nnU-Net 2D & nnunetv2 2.6.4 & default trainer, one fold & 1000 & \TBD{planned} \\
 \bottomrule
 \end{tabularx}
-\par\vspace{2pt}{\footnotesize\noindent Seeds 0, 1, 2 for U-Net, MALUNet and EGE-UNet; one run of nnU-Net. Augmentation and normalization as in each code base: \TBD{list}.\par}
+\par\vspace{2pt}{\footnotesize\raggedright\noindent U-Net, MALUNet and EGE-UNet: AdamW (learning rate $10^{-3}$, weight decay $10^{-2}$), cosine annealing with a period of 50 epochs and a minimum of $10^{-5}$, stepped once per epoch (so the cosine repeats over 300 epochs), no mixed precision, input $256\times256$, validation batch 1; horizontal and vertical flips with probability 0.5 and the rotation described above; normalization with the ISIC 2018 statistics of the official code followed by per-image min--max scaling. Seeds 0, 1, 2; one run of nnU-Net.\par}
 \end{table}
 
 % =================================================================================================
