@@ -59,6 +59,20 @@ def image_list(images=None, manifest=None, split="test", raw_root="data/raw", id
     return sorted(items)
 
 
+def unused_types(labels, min_images=20):
+    """Types never marked present after at least ``min_images`` labels: often a key the input method swallowed."""
+    if len(labels) < min_images:
+        return []
+    return [t for k, t in enumerate(TYPES) if not any(v[k] for v in labels.values())]
+
+
+def warn_unused(labels):
+    for t in unused_types(labels):
+        print(f"WARNING: no image marked '{t}' in {len(labels)} labels. If that is unexpected, turn off the "
+              f"Vietnamese input method (Unikey/EVKey -> E) and check that its key shows [x] in the status bar.\n"
+              f"CANH BAO: chua co anh nao duoc danh dau '{t}'. Kiem tra bo go tieng Viet da tat chua.")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--images", help="folder of images (e.g. an exported canvas split)")
@@ -115,10 +129,12 @@ def main():
                 save()
                 cv2.destroyAllWindows()
                 print(f"saved {len(labels)} labels to {out}")
+                warn_unused(labels)
                 return
     save()
     cv2.destroyAllWindows()
     print(f"done: {len(labels)} labels in {out}")
+    warn_unused(labels)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@ nào trên tập test.** Bài báo ghi rõ điều này.
 
 Không gắn nhãn bọt gel, viền gel, miếng dán. Một ảnh có thể có nhiều loại cùng lúc; không có loại nào thì để trống và bấm Enter.
 
+Trước mỗi phiên: tắt bộ gõ tiếng Việt (Unikey/EVKey về chế độ E; kiểu Telex dùng phím `d` để gõ chữ đ và có thể nuốt phím), rồi bấm thử `h r m d` trên ảnh đầu tiên và nhìn thanh trạng thái hiện `[x]` đủ bốn loại trước khi tắt lại. Khi thoát, công cụ cảnh báo nếu sau ít nhất 20 ảnh có loại chưa được đánh dấu lần nào. Ngày 26/10/2026 bài tập đầu tiên của người 1 không có nhãn góc tối nào (8/20 ảnh có góc tối rõ) và phải làm lại; lý do nhiều khả năng là bộ gõ.
+
 ## Quy trình
 
 1. **Người gắn nhãn 1: toàn bộ 1.000 ảnh**, xem ảnh gốc ở cạnh dài 900 px (rõ lông mảnh hơn ảnh 640):

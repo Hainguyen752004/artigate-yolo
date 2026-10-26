@@ -32,6 +32,15 @@ def test_status_bar_does_not_cover_the_image(load_script):
     assert tool.KEYS[ord("H")] == tool.KEYS[ord("h")] == 0
 
 
+def test_session_warns_when_a_type_was_never_marked(load_script, capsys):
+    tool = load_script("label_artifacts")
+    labels = {f"I{i}": [int(i % 3 == 0), int(i == 5), 0, 0] for i in range(20)}
+    assert tool.unused_types(labels) == ["marker", "dark_corner"]
+    assert tool.unused_types(dict(list(labels.items())[:19])) == []  # too few labels to judge
+    tool.warn_unused(labels)
+    assert "no image marked 'dark_corner'" in capsys.readouterr().out
+
+
 def test_agreement_kappa_disagreements_and_final_labels(tmp_path, load_script):
     script = load_script("artifact_agreement")
     header = ["image_id", "hair", "ruler", "marker", "dark_corner"]
