@@ -1,13 +1,15 @@
 """Folder of images for an annotator who labels on their own computer, without the repository.
 
-The images are the views label_artifacts.py shows annotator 1: the original scaled so its longer side is
-900 px (INTER_AREA down, INTER_LINEAR up), saved as JPEG quality 95; the tool shows them unchanged.
-    test_200/     the agreement subset (data/splits/isic2018_test_kappa_subset.csv)
+The images are the views label_artifacts.py shows with --manifest: the original scaled so its longer
+side is 900 px (INTER_AREA down, INTER_LINEAR up), saved as JPEG quality 95; the tool shows them unchanged.
+    test_<n>/     the agreement subset (data/splits/isic2018_test_kappa_subset.csv), or with --all-test
+                  all 1,000 test images (for an annotator 1 who works without the repository)
     practice_20/  training images for practice: 4 flagged with each artifact type and 4 with none
                   (Bissoto flags, seed 20261026), listed in practice_ids.csv
 plus a copy of label_artifacts.py. The instructions and launchers are added by hand.
 
     python scripts/make_annotator_bundle.py --out ../handoff/artigate_annotator2
+    python scripts/make_annotator_bundle.py --all-test --out ../handoff/artigate_annotator1
 """
 import argparse
 import csv
@@ -42,15 +44,19 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--raw-root", type=Path, default=ROOT / "data" / "raw")
+    parser.add_argument("--all-test", action="store_true", help="every test image instead of the agreement subset")
     args = parser.parse_args(argv)
     splits = ROOT / "data" / "splits"
     with (splits / "isic2018.csv").open(encoding="utf-8") as stream:
         manifest = {r["sample_id"]: r for r in csv.DictReader(stream)}
-    with (splits / "isic2018_test_kappa_subset.csv").open(encoding="utf-8") as stream:
-        subset = [r["image_id"] for r in csv.DictReader(stream)]
+    if args.all_test:
+        subset = sorted(i for i, r in manifest.items() if r["split"] == "test")
+    else:
+        with (splits / "isic2018_test_kappa_subset.csv").open(encoding="utf-8") as stream:
+            subset = [r["image_id"] for r in csv.DictReader(stream)]
     with (splits / "isic2018_train_flags.csv").open(encoding="utf-8") as stream:
         practice = practice_ids(list(csv.DictReader(stream)))
-    for folder, ids, split in (("test_200", subset, "test"), ("practice_20", practice, "train")):
+    for folder, ids, split in ((f"test_{len(subset)}", subset, "test"), ("practice_20", practice, "train")):
         target = args.out / "images" / folder
         target.mkdir(parents=True, exist_ok=True)
         for image_id in ids:

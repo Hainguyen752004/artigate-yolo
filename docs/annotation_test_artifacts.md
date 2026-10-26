@@ -17,7 +17,7 @@ Không gắn nhãn bọt gel, viền gel, miếng dán. Một ảnh có thể c�
 
 ## Quy trình
 
-1. **Người gắn nhãn 1 (anh Hải): toàn bộ 1.000 ảnh**, xem ảnh gốc (rõ lông mảnh hơn ảnh 640):
+1. **Người gắn nhãn 1: toàn bộ 1.000 ảnh**, xem ảnh gốc ở cạnh dài 900 px (rõ lông mảnh hơn ảnh 640):
 
    ```bash
    python scripts/label_artifacts.py --manifest data/splits/isic2018.csv --split test \
@@ -39,11 +39,11 @@ Không gắn nhãn bọt gel, viền gel, miếng dán. Một ảnh có thể c�
 
    Người 2 gắn độc lập, không xem nhãn của người 1.
 
-   Nếu người 2 làm trên máy riêng, không có repo: `python scripts/make_annotator_bundle.py --out <thư mục>`
-   tạo sẵn 200 ảnh test và 20 ảnh train để tập, ở đúng cỡ người 1 thấy trong công cụ (cạnh dài 900 px,
-   JPEG chất lượng 95), kèm bản sao `label_artifacts.py`. Người 2 chạy công cụ với `--images` trên thư mục
-   đó. Người 1 gắn nhãn cùng 20 ảnh tập (`--images <thư mục>/images/practice_20 --out runs/annotation_practice_a1.csv`)
-   để hai người so và bàn trước khi người 2 gắn nhãn tập con.
+   Người gắn nhãn làm trên máy riêng, không có repo: `python scripts/make_annotator_bundle.py --out <thư mục>`
+   (người 2: 200 ảnh của tập con) hoặc thêm `--all-test` (người 1: cả 1.000 ảnh) tạo sẵn ảnh test và 20 ảnh
+   train để tập, ở đúng cỡ công cụ hiển thị với `--manifest` (cạnh dài 900 px, JPEG chất lượng 95), kèm bản sao
+   `label_artifacts.py`; công cụ chạy với `--images` trên thư mục đó. Cả hai người gắn nhãn cùng 20 ảnh tập,
+   so và bàn các chỗ khác nhau trước khi gắn nhãn tập test; sau đó không bàn gì cho tới bước 3.
 
 3. **Độ đồng thuận và nhãn cuối:**
 
