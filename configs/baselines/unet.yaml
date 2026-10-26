@@ -1,0 +1,24 @@
+# U-Net (Ronneberger et al. 2015; padded 3x3 convolutions + BatchNorm, 64 base channels,
+# src/artigate/baselines/unet.py) trained with the EGE-UNet recipe (CLAUDE.md, "Baseline ngoài YOLO"):
+#   https://github.com/JCruan519/EGE-UNet/blob/f52ba30c6bf7d0ca479c2c9d4a3cbda999f49d3a/configs/config_setting.py
+# Everything as configs/baselines/egeunet.yaml except the loss: U-Net has no deep-supervision outputs,
+# so GT_BceDiceLoss reduces to its main term, BceDiceLoss(wb=1, wd=1) on the output.
+model:
+  name: unet
+  source: {repo: this repository, file: src/artigate/baselines/unet.py}
+  kwargs: {num_classes: 1, input_channels: 3, base_channels: 64}
+loss: {name: BceDiceLoss, wb: 1, wd: 1}
+optimizer: {name: AdamW, lr: 0.001, betas: [0.9, 0.999], eps: 1.0e-8, weight_decay: 0.01, amsgrad: false}
+scheduler: {name: CosineAnnealingLR, T_max: 50, eta_min: 1.0e-5}
+epochs: 300
+batch: 8
+val_batch: 1
+amp: false
+threshold: 0.5
+normalize: {datasets: isic18}
+augment:
+  hflip: 0.5
+  vflip: 0.5
+  rotation: {p: 0.5, degrees: [0, 360]}
+input_size: [640, 640]
+num_workers: 8

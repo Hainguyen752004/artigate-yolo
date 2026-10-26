@@ -139,6 +139,27 @@ A1s tách hiệu ứng "tăng cường dữ liệu bằng artifact" khỏi hiệ
 
 Baseline YOLO26n-seg thường dùng `--model yolo26n-seg.yaml` (YAML có sẵn của Ultralytics). Baseline hai view và baseline cạo lông (DullRazor) dùng dữ liệu xuất với `--train-views`/`--eval-views`.
 
+## Baseline ngoài YOLO
+
+Quy trình đã khóa trong CLAUDE.md. Các baseline chạy trong venv riêng (`requirements-baselines.txt`, Python ≥ 3.10 cho nnU-Net v2) và từ một bản checkout riêng có tag `baselines-v1`.
+
+| Baseline | Code | Recipe |
+|---|---|---|
+| U-Net (conv có padding + BatchNorm, 64 kênh gốc) | `src/artigate/baselines/unet.py` | recipe EGE-UNet, loss BceDiceLoss (`configs/baselines/unet.yaml`) |
+| MALUNet | tải bằng `scripts/fetch_malunet.py` (repo không có licence, không commit code) | `configs/baselines/malunet.yaml`, commit e184b47 |
+| EGE-UNet | `third_party/egeunet/` (Apache 2.0, chép kèm LICENSE) | `configs/baselines/egeunet.yaml`, commit f52ba30 |
+| nnU-Net v2 2D | `scripts/prepare_nnunet.py` + lệnh của nnU-Net | cấu hình 2D mặc định, trainer mặc định, fold 0 = train/val chính thức |
+
+```bash
+python scripts/fetch_malunet.py
+python scripts/run_baselines.py --project <runs>/baselines       # EGE-UNet s0-2 → MALUNet s0-2 → U-Net s0-2
+python scripts/eval_seg_baseline.py --weights <runs>/baselines/egeunet_s0/best.pt --split val --project <runs>/eval
+python scripts/prepare_nnunet.py dataset                          # rồi plan_and_preprocess / train / predict (xem docstring)
+python scripts/benchmark.py --baselines unet malunet egeunet --half --device 0
+```
+
+Mỗi run ghi `best.pt` (Dice val trung bình cao nhất, ngưỡng 0,5), `last.pt` (chạy tiếp được bằng `--resume`), `history.csv` và `provenance.json`. Batch không vừa GPU thì giảm một nửa; batch đã dùng được ghi trong provenance. `eval_seg_baseline.py` dùng chung khóa test và sổ chấm với `eval.py` (`src/artigate/scoring.py`), và ghi `per_image_metrics.csv` cùng định dạng để `compare_family.py` đọc thẳng.
+
 ## Khác với code ICEEIS
 
 - **Sửa lỗi nạp trọng số.** Trong ICEEIS, trọng số YOLO26n-seg được nạp vào mô hình trước khi gọi `model.train()`. Ultralytics lại dựng lại mô hình từ YAML bên trong `train()`, nên các trọng số đó bị bỏ và mô hình ICEEIS thực chất được train từ đầu (đã kiểm chứng trên Ultralytics 8.4.13). Bản này nạp trọng số trong `TransferSegmentationTrainer.get_model`, và có `tests/test_trainer.py` để lỗi không quay lại.

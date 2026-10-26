@@ -1,0 +1,3 @@
+# Keep third-party files byte-identical to upstream (egeunet.py has CRLF line endings upstream)
+third_party/egeunet/egeunet.py -text
+third_party/egeunet/LICENSE -text

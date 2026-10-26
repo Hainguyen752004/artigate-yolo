@@ -1,0 +1,2 @@
+# MALUNet has no licence: the fetched model file stays out of git (scripts/fetch_malunet.py)
+*.py
