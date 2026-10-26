@@ -5,8 +5,9 @@
 For each run folder <row>_s<seed>: provenance.json exists; its commit is the commit of --tag and the
 code was clean; the schedule equals configs/train/default.yaml (optimizer AdamW, lr0, epochs, batch,
 no smoke-test fraction); Ultralytics' args.yaml agrees on optimizer, lr0, epochs and batch; and the
-model, data, p_synth and seed are those of the row in configs/runs.yaml (A4/A5 and A1/A1s share a
-model YAML, so this is what tells them apart). Exits non-zero if any run fails.
+model, data, p_synth and seed are those of the row in configs/runs.yaml, and the preprocessing views
+of the data export (metadata/export_summary.json) are the row's views. A4/A5 and A1/A1s/A1v7/A1v17
+share a model YAML, so this is what tells them apart. Exits non-zero if any run fails.
 """
 import argparse
 import json
@@ -18,14 +19,30 @@ import sys
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from artigate.data.dataset_yaml import load_dataset_yaml
+
 SCHEDULE_KEYS = ("optimizer", "lr0", "momentum", "warmup_bias_lr", "epochs", "batch", "imgsz")
+DEFAULT_VIEWS = {"train": ["v1"], "eval": ["v1"]}
 
 
 def _same_file(recorded, expected):
     return Path(str(recorded)).as_posix().endswith(Path(expected).as_posix())
 
 
-def check_run(run_dir, commit, schedule, rows):
+def export_views(data_yaml):
+    """{"train": [...], "eval": [...]} views of the export a dataset YAML points at, or None if unknown."""
+    try:
+        _, root = load_dataset_yaml(data_yaml)
+        splits = json.loads((root / "metadata" / "export_summary.json").read_text(encoding="utf-8"))["splits"]
+    except (OSError, KeyError, ValueError):
+        return None
+    evals = {tuple(splits[split]["views"]) for split in ("val", "test") if split in splits}
+    return {"train": splits.get("train", {}).get("views"), "eval": list(evals.pop()) if len(evals) == 1 else sorted(evals)}
+
+
+def check_run(run_dir, commit, schedule, rows, views_of=export_views):
     """Problems found in one run folder (an empty list means the run passes)."""
     run_dir = Path(run_dir)
     match = re.fullmatch(r"(.+)_s(\d+)", run_dir.name)
@@ -66,6 +83,13 @@ def check_run(run_dir, commit, schedule, rows):
         problems.append(f"p_synth override {overrides.get('p_synth')!r}, row {row} needs {spec.get('p_synth')!r}")
     if provenance.get("seed") != seed:
         problems.append(f"seed {provenance.get('seed')} does not match the name (s{seed})")
+    data_yaml = Path(str(provenance.get("data_yaml", "")))
+    views = views_of(data_yaml if data_yaml.is_file() else ROOT / spec["data"])
+    expected = spec.get("views", DEFAULT_VIEWS)
+    if views is None:
+        problems.append(f"cannot read the views of the data export behind {spec['data']}")
+    elif views != expected:
+        problems.append(f"data export views {views}, row {row} needs {expected}")
     return problems
 
 

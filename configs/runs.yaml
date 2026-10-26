@@ -1,6 +1,8 @@
 # Training rows of Paper 1, read by scripts/run_plan.py and scripts/check_provenance.py.
 # Run names are <row>_s<seed>. Every run uses configs/train/default.yaml; A4/A5 share a model YAML
-# and A1/A1s share one too, so a row is identified by its model, data and extra arguments together.
+# and A1/A1s/A1v7/A1v17 share one too, so a row is identified by its model, data, extra arguments and
+# views together. views = preprocessing views of the exported training and evaluation images
+# (default: v1 for both); check_provenance compares them with the export of the row's data.
 # A6 is an analysis of A4 (artifact strata, severity sets) and has no training run.
 rows:
   A0: {model: configs/models/yolo26n-seg-p2.yaml, data: configs/data/isic2018.yaml}
@@ -11,3 +13,13 @@ rows:
   A4: {model: configs/models/yolo26n-seg-p2-artigate.yaml, data: configs/data/isic2018_art.yaml}
   A5: {model: configs/models/yolo26n-seg-p2-artigate.yaml, data: configs/data/isic2018_art.yaml, p_synth: 0}
   A7: {model: configs/models/yolo26n-seg-p2-artigate-p2only.yaml, data: configs/data/isic2018_art.yaml}
+  # Baselines of the main comparison table (milestone 3)
+  Y26: {model: configs/models/yolo26n-seg.yaml, data: configs/data/isic2018.yaml}  # stock YOLO26n-seg, no P2/CBAM
+  A1v7:  # A1 trained and evaluated on the v7 view (DullRazor-style hair removal + Gray-World)
+    model: configs/models/yolo26n-seg-p2-cbam.yaml
+    data: configs/data/isic2018_v7.yaml
+    views: {train: [v7], eval: [v7]}
+  A1v17:  # A1 trained on v1 + v7 as in ICEEIS, evaluated on v1 as ICEEIS did
+    model: configs/models/yolo26n-seg-p2-cbam.yaml
+    data: configs/data/isic2018_v17.yaml
+    views: {train: [v1, v7], eval: [v1]}

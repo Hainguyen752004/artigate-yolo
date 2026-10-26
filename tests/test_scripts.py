@@ -116,3 +116,35 @@ def test_bootstrap_script_rejects_different_image_sets(tmp_path, load_script):
     write_metrics(tmp_path / "b.csv", [0.8])
     with pytest.raises(ValueError, match="different images"):
         load_script("bootstrap_ci").main([str(tmp_path / "a.csv"), "--baseline", str(tmp_path / "b.csv")])
+
+
+def test_test_split_is_scored_once_per_checkpoint(tmp_path, load_script):
+    evaluate = load_script("eval")
+    project, data, sha = tmp_path / "eval", tmp_path / "isic2018.yaml", "f" * 64
+    assert evaluate.default_name(tmp_path / "A4_s0" / "weights" / "best.pt", data, "test") == "A4_s0_isic2018_test"
+    severity = tmp_path / "isic2018_sev" / "hair_s3" / "data.yaml"
+    assert evaluate.default_name(tmp_path / "A4_s0" / "weights" / "best.pt", severity, "test", "union") == "A4_s0_hair_s3_test_union"
+    # validation can be rerun into the same folder
+    (project / "A4_s0_isic2018_val").mkdir(parents=True)
+    assert evaluate.output_dir(project, "A4_s0_isic2018_val", "val", sha, data, "top1") == (
+        project / "A4_s0_isic2018_val", True)
+    # the first test scoring is allowed and logged
+    save_dir, reuse = evaluate.output_dir(project, "A4_s0_isic2018_test", "test", sha, data, "top1")
+    assert (save_dir, reuse) == (project / "A4_s0_isic2018_test", False)
+    save_dir.mkdir()
+    evaluate.record_test_scoring(project, save_dir.name, save_dir, "best.pt", sha, data, "top1")
+    # a second scoring is refused, also under another name, until a reason is given
+    for name in ("A4_s0_isic2018_test", "renamed"):
+        with pytest.raises(SystemExit, match="already scored"):
+            evaluate.output_dir(project, name, "test", sha, data, "top1")
+    with pytest.raises(SystemExit, match="already scored"):
+        evaluate.output_dir(project, "A4_s0_isic2018_test", "test", sha, data, "top1", rescore_reason="   ")
+    rescore, _ = evaluate.output_dir(project, "A4_s0_isic2018_test", "test", sha, data, "top1", "bug in mask export")
+    assert rescore == project / "A4_s0_isic2018_test_rescore1"
+    rescore.mkdir()
+    evaluate.record_test_scoring(project, "A4_s0_isic2018_test", rescore, "best.pt", sha, data, "top1", "bug in mask export")
+    assert "bug in mask export" in (save_dir / "rescore_log.txt").read_text(encoding="utf-8")
+    assert evaluate.output_dir(project, "A4_s0_isic2018_test", "test", sha, data, "top1", "again")[0].name.endswith("_rescore2")
+    # the union rule is a separate, planned analysis; another checkpoint is a new scoring
+    assert evaluate.output_dir(project, "A4_s0_isic2018_test_union", "test", sha, data, "union")[1] is False
+    assert evaluate.output_dir(project, "A1_s0_isic2018_test", "test", "e" * 64, data, "top1")[1] is False

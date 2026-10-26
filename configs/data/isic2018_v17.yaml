@@ -1,0 +1,9 @@
+# ISIC 2018 Task 1 as the ICEEIS two-view setup: training images in both views v1 and v7, validation and
+# test in v1 only (as ICEEIS evaluated): row A1v17. Exported with
+#   scripts/export_yolo.py --manifest data/splits/isic2018.csv --out data/yolo/isic2018_v17 --train-views v1,v7 --eval-views v1
+path: ../../data/yolo/isic2018_v17
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: lesion

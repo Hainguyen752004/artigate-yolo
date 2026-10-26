@@ -3,9 +3,17 @@
 Per-image metrics compare one binary prediction per image with the exported ground-truth mask
 on the 640x640 canvas. --mask-rule top1 keeps the highest-confidence instance (the ICEEIS rule);
 union merges every instance at or above --conf.
+
+A test split (ISIC 2018 or an external set) is scored once per checkpoint, dataset and mask rule:
+every test scoring is appended to <project>/test_scoring_log.jsonl, and a second scoring of the same
+checkpoint (by its sha256) is refused, whatever --name says. --rescore-reason "..." allows it: the
+new results go to <name>_rescore<k>, nothing is overwritten, and the reason is appended to
+rescore_log.txt in the original folder. Validation and training splits can be rerun freely.
 """
 import argparse
 import csv
+from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import sys
@@ -45,18 +53,77 @@ def parse_args(argv=None):
     parser.add_argument("--weights", type=_project_path, required=True)
     parser.add_argument("--data", type=_project_path, default=DEFAULT_DATA)
     parser.add_argument("--split", default="test", choices=("train", "val", "test"))
-    parser.add_argument("--name", default=None, help="output name (default: <run>_<split>)")
+    parser.add_argument("--name", default=None, help="output name (default: <run>_<data>_<split>[_union])")
     parser.add_argument("--project", type=_project_path, default=DEFAULT_PROJECT)
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--device", default=None)
     parser.add_argument("--mask-rule", choices=("top1", "union"), default="top1")
     parser.add_argument("--conf", type=float, default=0.25, help="confidence threshold for --mask-rule union")
+    parser.add_argument("--rescore-reason", default=None,
+                        help="why a test split already scored with this checkpoint must be scored again (logged)")
     return parser.parse_args(argv)
 
 
-def default_name(weights, split):
+def default_name(weights, data_yaml, split, mask_rule="top1"):
     run = weights.parent.parent.name if weights.parent.name == "weights" else weights.stem
-    return f"{run}_{split}"
+    data_yaml = Path(data_yaml)
+    # generated sets keep one data.yaml per folder (e.g. isic2018_sev/hair_s3/data.yaml): name them by folder
+    data = data_yaml.parent.name if data_yaml.stem in ("data", "dataset") else data_yaml.stem
+    return f"{run}_{data}_{split}" + ("_union" if mask_rule == "union" else "")
+
+
+def _scoring_log(project):
+    return Path(project) / "test_scoring_log.jsonl"
+
+
+def test_scorings(project, weights_sha, data_yaml, mask_rule):
+    """Earlier test scorings of this checkpoint on this dataset with this mask rule."""
+    log = _scoring_log(project)
+    if not log.is_file():
+        return []
+    entries = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    data = str(Path(data_yaml).resolve())
+    return [e for e in entries if e["weights_sha256"] == weights_sha and e["data_yaml"] == data and e["mask_rule"] == mask_rule]
+
+
+def output_dir(project, name, split, weights_sha, data_yaml, mask_rule, rescore_reason=None):
+    """Folder this evaluation writes to, and whether Ultralytics may reuse it.
+
+    Validation and training splits reuse <project>/<name>. A test split gets <project>/<name> only if
+    neither that folder nor an earlier scoring of the checkpoint exists; otherwise a non-empty
+    rescore_reason is required and the results go to a fresh <name>_rescore<k>.
+    """
+    project = Path(project)
+    save_dir = project / name
+    if split != "test":
+        return save_dir, True
+    earlier = test_scorings(project, weights_sha, data_yaml, mask_rule)
+    if not earlier and not save_dir.exists():
+        return save_dir, False
+    if not (rescore_reason or "").strip():
+        where = earlier[0]["save_dir"] if earlier else str(save_dir)
+        raise SystemExit(f"this checkpoint was already scored on the test split ({where}); test sets are scored "
+                         f"once. Pass --rescore-reason \"...\" to score again into a new folder.")
+    k = 1
+    while (project / f"{name}_rescore{k}").exists():
+        k += 1
+    return project / f"{name}_rescore{k}", False
+
+
+def record_test_scoring(project, name, save_dir, weights, weights_sha, data_yaml, mask_rule, rescore_reason=None):
+    """Append to the scoring log; for a rescore, also note the reason in the original folder."""
+    timestamp = datetime.now(timezone.utc).isoformat()
+    entry = {"timestamp_utc": timestamp, "weights": str(weights), "weights_sha256": weights_sha,
+             "data_yaml": str(Path(data_yaml).resolve()), "split": "test", "mask_rule": mask_rule,
+             "save_dir": str(save_dir), "rescore_reason": rescore_reason}
+    _scoring_log(project).parent.mkdir(parents=True, exist_ok=True)
+    with _scoring_log(project).open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(entry) + "\n")
+    if rescore_reason:
+        original = Path(project) / name
+        original.mkdir(parents=True, exist_ok=True)
+        with (original / "rescore_log.txt").open("a", encoding="utf-8") as stream:
+            stream.write(f"{timestamp}\t{Path(save_dir).name}\t{rescore_reason}\n")
 
 
 def predicted_mask(result, rule, conf, shape):
@@ -113,9 +180,10 @@ def main(argv=None):
     register_modules()
     warn_if_unpinned()
     device = args.device if args.device is not None else (0 if torch.cuda.is_available() else "cpu")
-    name = args.name or default_name(args.weights, args.split)
-    if (args.project / name).exists():
-        raise FileExistsError(f"Output directory already exists: {args.project / name}")
+    name = args.name or default_name(args.weights, args.data, args.split, args.mask_rule)
+    weights_sha = sha256_file(args.weights)
+    save_dir, reuse = output_dir(args.project, name, args.split, weights_sha, args.data, args.mask_rule,
+                                 args.rescore_reason)
     config, root = load_dataset_yaml(args.data)
     image_dir = split_dir(root, config, args.split, "images")
     image_paths = sorted(path for path in image_dir.iterdir() if path.suffix.lower() in IMAGE_SUFFIXES)
@@ -126,9 +194,10 @@ def main(argv=None):
     with runtime_dataset_yaml(args.data) as runtime_yaml:
         metrics = model.val(
             data=str(runtime_yaml), split=args.split, imgsz=640, batch=args.batch, device=device, iou=0.7,
-            plots=True, project=str(args.project), name=name, exist_ok=False, verbose=False,
+            plots=True, project=str(args.project), name=save_dir.name, exist_ok=reuse, verbose=False,
         )
-    save_dir = Path(metrics.save_dir)
+    if Path(metrics.save_dir).resolve() != save_dir.resolve():
+        raise RuntimeError(f"Ultralytics wrote to {metrics.save_dir}, expected {save_dir}")
     rows = per_image_rows(
         model, image_paths, split_dir(root, config, args.split, "masks"),
         split_dir(root, config, args.split, "labels"), args, device,
@@ -137,9 +206,10 @@ def main(argv=None):
     results = metrics.results_dict
     summary = {
         "weights": str(args.weights),
-        "weights_sha256": sha256_file(args.weights),
+        "weights_sha256": weights_sha,
         "data_yaml": str(args.data),
         "split": args.split,
+        "rescore_reason": args.rescore_reason,
         "n_images": len(rows),
         "mask_rule": args.mask_rule,
         "union_conf": args.conf if args.mask_rule == "union" else None,
@@ -149,6 +219,9 @@ def main(argv=None):
         "environment": environment(),
     }
     write_json(save_dir / "eval_summary.json", summary)
+    if args.split == "test":
+        record_test_scoring(args.project, name, save_dir, args.weights, weights_sha, args.data, args.mask_rule,
+                            args.rescore_reason)
     print(f"[INFO] Wrote {save_dir / 'eval_summary.json'}")
     for metric, value in summary["per_image_mean"].items():
         print(f"{metric}: {value:.4f}")

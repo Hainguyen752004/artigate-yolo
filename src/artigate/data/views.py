@@ -68,9 +68,16 @@ def make_view(image, mask, view, size=640):
     if mask.shape[:2] != (height, width):
         raise ValueError(f"mask size {mask.shape[:2]} differs from image size {(height, width)}")
     x, y, w, h = 0, 0, width, height
+    pre = 1.0
     if view == "v7":
         image, x, y, w, h = smart_roi_crop(image)
         mask = mask[y:y + h, x:x + w]
+        # Remove hair at canvas resolution: the 17x17 black-hat was tuned on ~600-px HAM10000 images
+        # (ICEEIS); on multi-megapixel ISIC images hair is far wider than the kernel.
+        pre = size / max(w, h)
+        work = (max(1, int(round(w * pre))), max(1, int(round(h * pre))))
+        image = cv2.resize(image, work, interpolation=cv2.INTER_AREA if pre < 1 else cv2.INTER_LINEAR)
+        mask = cv2.resize(mask.astype(np.uint8), work, interpolation=cv2.INTER_NEAREST).astype(bool)
         image = gray_world_color_constancy(dullrazor(image))
     image, scale, pad_x, pad_y = letterbox(image, size)
     mask, _, _, _ = letterbox(mask.astype(np.uint8) * 255, size, color=0, interpolation=cv2.INTER_NEAREST)
@@ -78,7 +85,7 @@ def make_view(image, mask, view, size=640):
         "view": view,
         "source_size": [width, height],
         "crop_box": [int(x), int(y), int(w), int(h)],
-        "scale": float(scale),
+        "scale": float(scale * pre),
         "pad": [int(pad_x), int(pad_y)],
         "canvas_size": size,
     }

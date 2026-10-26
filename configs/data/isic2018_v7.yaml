@@ -1,0 +1,10 @@
+# ISIC 2018 Task 1 in the v7 view only (ROI crop, DullRazor-style hair removal, Gray-World, letterbox),
+# for train, val and test: row A1v7. Exported with
+#   scripts/export_yolo.py --manifest data/splits/isic2018.csv --out data/yolo/isic2018_v7 --train-views v7 --eval-views v7
+# Ground-truth masks follow the same crop, so v7 metrics are on the v7 canvas.
+path: ../../data/yolo/isic2018_v7
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: lesion

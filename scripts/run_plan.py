@@ -2,7 +2,7 @@
 
     python scripts/run_plan.py --rows A4 --seeds 0                 # milestone 1
     python scripts/run_plan.py --rows A1 A1s --seeds 0             # milestone 2 (with A4_s0)
-    python scripts/run_plan.py --rows A0 A2 A3 A5 A7 --seeds 0     # milestone 3, then:
+    python scripts/run_plan.py --rows A0 A2 A3 A5 A7 Y26 A1v7 A1v17 --seeds 0     # milestone 3, then:
     python scripts/run_plan.py --rows all --seeds 1 2
 
 Each run is scripts/train.py with the row's model, data and p_synth from configs/runs.yaml. Before

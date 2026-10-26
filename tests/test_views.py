@@ -42,6 +42,18 @@ def test_v7_view_crops_dark_frame_and_mask_together():
     assert iou(dark, view_mask) > 0.95
 
 
+def test_v7_removes_hair_on_large_images_at_canvas_resolution():
+    # a 2000 x 1500 photo with 20-px hair: wider than the 17x17 kernel at full size, ~6 px on the canvas
+    image = np.full((1500, 2000, 3), 200, np.uint8)
+    cv2.line(image, (0, 750), (1999, 750), (30, 30, 30), 20)
+    mask = np.zeros((1500, 2000), bool)
+    mask[200:400, 200:400] = True
+    view_image, view_mask, transform = make_view(image, mask, "v7")
+    assert transform["scale"] == pytest.approx(640 / 2000)
+    assert view_image[320, 100:540].mean() > 150  # the hair line, mapped onto the canvas, is gone
+    assert view_mask.sum() == pytest.approx((200 * 0.32) ** 2, rel=0.05)
+
+
 def test_dullrazor_removes_thin_dark_lines():
     image = np.full((100, 100, 3), 200, np.uint8)
     image[:, 49:51] = 30

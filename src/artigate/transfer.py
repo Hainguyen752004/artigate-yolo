@@ -23,9 +23,13 @@ def stock_layer_map(cfg):
     """Map stock YOLO26-seg layer indices to the matching layer indices of a model config.
 
     ``cfg`` is a model YAML path or an already-loaded config dict. Inserted layers are
-    skipped; every mapped pair must agree on repeats, module and arguments.
+    skipped; every mapped pair of the transferable prefix must agree on repeats, module and
+    arguments. Beyond the prefix, layers keep being mapped only while the config repeats the
+    stock topology exactly, inputs included: this transfers the whole stock model (Y26 row)
+    and never the rebuilt bottom-up head of a P2 variant.
     """
-    stock = _layers(STOCK_YAML)[:STOCK_TRANSFERABLE_LAYERS]
+    all_stock = _layers(STOCK_YAML)
+    stock = all_stock[:STOCK_TRANSFERABLE_LAYERS]
     custom = [(index, layer) for index, layer in enumerate(_layers(cfg)) if layer[2] not in INSERTED_MODULES]
     if len(custom) < len(stock):
         raise ValueError("model config has fewer layers than the transferable stock prefix")
@@ -35,6 +39,11 @@ def stock_layer_map(cfg):
             raise ValueError(
                 f"stock layer {stock_index} {stock_layer[1:]} does not match model layer {custom_index} {custom_layer[1:]}"
             )
+        mapping[stock_index] = custom_index
+    for stock_index in range(STOCK_TRANSFERABLE_LAYERS, min(len(all_stock), len(custom))):
+        custom_index, custom_layer = custom[stock_index]
+        if custom_index != stock_index or list(custom_layer) != list(all_stock[stock_index]):
+            break
         mapping[stock_index] = custom_index
     return mapping
 

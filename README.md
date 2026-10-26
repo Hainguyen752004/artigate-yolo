@@ -86,7 +86,7 @@ python scripts/train.py --model configs/models/yolo26n-seg-p2-cbam.yaml --data c
 python scripts/run_plan.py --rows A4 --seeds 0                 # mốc 1: xem đầu artifact và beta sau 20-30 epoch
 python scripts/inspect_run.py runs/segment/A4_s0               #   beta, trọng số kênh artifact, art_loss (chạy được khi đang train)
 python scripts/run_plan.py --rows A1 A1s --seeds 0             # mốc 2: cùng A4_s0 trả lời câu hỏi chính
-python scripts/run_plan.py --rows A0 A2 A3 A5 A7 --seeds 0     # mốc 3
+python scripts/run_plan.py --rows A0 A2 A3 A5 A7 Y26 A1v7 A1v17 --seeds 0     # mốc 3 (cả baseline)
 python scripts/run_plan.py --rows all --seeds 1 2
 python scripts/check_provenance.py --tag train-v1 runs/segment/*_s*   # đúng commit, code sạch, AdamW, đúng dòng
 ```
@@ -96,7 +96,7 @@ Trước khi chạy thật: `viz_train_batch.py` (mask artifact khớp ảnh sau
 **4. Đánh giá.**
 
 ```bash
-python scripts/eval.py --weights runs/segment/yolo26n-seg-p2-cbam_s0/weights/best.pt --split test
+python scripts/eval.py --weights runs/segment/A1_s0/weights/best.pt --data configs/data/isic2018.yaml --split test   # -> runs/eval/A1_s0_isic2018_test
 ```
 
 Script ghi `eval_summary.json` (mAP của Ultralytics cùng Dice/IoU/HD95/boundary F1 trung bình) và `per_image_metrics.csv`. Quy tắc mặc định `--mask-rule top1` lấy instance có độ tin cậy cao nhất, giống ICEEIS.
@@ -106,7 +106,7 @@ Script ghi `eval_summary.json` (mAP của Ultralytics cùng Dice/IoU/HD95/bounda
 **5. Khoảng tin cậy và so sánh ghép cặp.**
 
 ```bash
-python scripts/bootstrap_ci.py runs/eval/A4_s0_test/per_image_metrics.csv --baseline runs/eval/A1_s0_test/per_image_metrics.csv
+python scripts/bootstrap_ci.py runs/eval/A4_s0_isic2018_test/per_image_metrics.csv --baseline runs/eval/A1_s0_isic2018_test/per_image_metrics.csv
 # theo nhóm có/không artifact (cờ cấp ảnh từ scripts/label_artifacts.py)
 python scripts/bootstrap_ci.py ... --strata data/splits/isic2018_test_artifacts.csv
 # bảng của bài: mỗi mô hình = 3 file per_image_metrics.csv (seed 0, 1, 2), trung bình theo ảnh rồi so ghép cặp;
@@ -129,6 +129,11 @@ python scripts/compare_family.py --reference A1=<s0.csv>,<s1.csv>,<s2.csv> --mod
 | A5 | A4 bỏ dán artifact tổng hợp | A4 với `--p-synth 0` | sẵn sàng |
 | A6 | A4 với từng loại artifact riêng | đánh giá: `--strata` và `make_severity_sets.py` | sẵn sàng |
 | A7 | AGA chỉ ở P2 so với P2 + P3 | `yolo26n-seg-p2-artigate-p2only.yaml` + `isic2018_art.yaml` | sẵn sàng |
+| Y26 | YOLO26n-seg gốc, không P2, không CBAM (nạp đủ trọng số gốc trừ nhánh phân lớp phụ thuộc nc) | `yolo26n-seg.yaml` + `isic2018.yaml` | sẵn sàng |
+| A1v7 | A1 train và đánh giá trên view v7 (cắt ROI, cạo lông kiểu DullRazor ở độ phân giải canvas, Gray-World) | `yolo26n-seg-p2-cbam.yaml` + `isic2018_v7.yaml` | sẵn sàng |
+| A1v17 | A1 train trên v1 + v7 như ICEEIS, đánh giá trên v1 như ICEEIS | `yolo26n-seg-p2-cbam.yaml` + `isic2018_v17.yaml` | sẵn sàng |
+
+Chấm test chỉ một lần cho mỗi checkpoint, bộ dữ liệu và quy tắc mask: `eval.py --split test` ghi mỗi lần chấm vào `runs/eval/test_scoring_log.jsonl` và từ chối chấm lại (kể cả khi đổi `--name`), trừ khi có `--rescore-reason "..."`; khi đó kết quả mới vào `<tên>_rescore<k>` và lý do được ghi vào `rescore_log.txt` của thư mục gốc. Val chạy lại thoải mái.
 
 A1s tách hiệu ứng "tăng cường dữ liệu bằng artifact" khỏi hiệu ứng của AGA. A3 không dùng A4 với `--art-lambda 0`: A4 detach bản đồ, nên khi λ = 0 đầu artifact không nhận gradient nào và bản đồ đứng yên ở ~0,01. A5 không có artifact tổng hợp nên chỉ có nhãn âm: đầu artifact bị đẩy về 0 ở mọi nơi, tức A5 cho biết mô hình ra sao khi giám sát không có tín hiệu dương nào. Chi phí ở 640×640 (đã fuse): A1 2,738 M tham số / 11,21 GFLOPs, A4 2,759 M / 12,26 GFLOPs.
 

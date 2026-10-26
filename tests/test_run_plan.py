@@ -14,11 +14,13 @@ COMMIT = "a" * 40
 
 
 def test_every_row_points_at_existing_configs():
-    assert set(ROWS) == {"A0", "A1", "A1s", "A2", "A3", "A4", "A5", "A7"}
+    assert set(ROWS) == {"A0", "A1", "A1s", "A2", "A3", "A4", "A5", "A7", "Y26", "A1v7", "A1v17"}
     for spec in ROWS.values():
         assert (ROOT / spec["model"]).is_file() and (ROOT / spec["data"]).is_file()
     assert ROWS["A5"]["model"] == ROWS["A4"]["model"] and ROWS["A5"]["p_synth"] == 0
     assert ROWS["A1s"]["model"] == ROWS["A1"]["model"] and ROWS["A1s"]["data"] != ROWS["A1"]["data"]
+    assert ROWS["A1v7"]["views"] == {"train": ["v7"], "eval": ["v7"]}
+    assert ROWS["A1v17"]["views"] == {"train": ["v1", "v7"], "eval": ["v1"]}
 
 
 def test_plan_names_runs_and_loops_over_seeds_first(load_script):
@@ -93,20 +95,59 @@ def finished_run(root, name, row, **changes):
     return run_dir
 
 
+EXPORT_VIEWS = {"isic2018": {"train": ["v1"], "eval": ["v1"]}, "isic2018_art": {"train": ["v1"], "eval": ["v1"]},
+                "isic2018_v7": {"train": ["v7"], "eval": ["v7"]}, "isic2018_v17": {"train": ["v1", "v7"], "eval": ["v1"]}}
+
+
+def fake_views(data_yaml):
+    return EXPORT_VIEWS[Path(data_yaml).stem]
+
+
 def test_check_provenance_accepts_a_correct_run_and_catches_mix_ups(tmp_path, load_script):
     check = load_script("check_provenance")
-    assert check.check_run(finished_run(tmp_path, "A5_s0", "A5"), COMMIT, SCHEDULE, ROWS) == []
+
+    def problems_of(run_dir, commit=COMMIT, views_of=fake_views):
+        return check.check_run(run_dir, commit, SCHEDULE, ROWS, views_of=views_of)
+
+    assert problems_of(finished_run(tmp_path, "A5_s0", "A5")) == []
+    assert problems_of(finished_run(tmp_path, "A1v17_s0", "A1v17")) == []
     # an A4 run filed under the A5 name: same model YAML, but no p_synth override
-    problems = check.check_run(finished_run(tmp_path, "A5_s1", "A4"), COMMIT, SCHEDULE, ROWS)
-    assert any("p_synth" in problem for problem in problems)
-    # A1 data used for A1s
-    problems = check.check_run(finished_run(tmp_path, "A1s_s0", "A1"), COMMIT, SCHEDULE, ROWS)
-    assert any(problem.startswith("data ") for problem in problems)
+    assert any("p_synth" in problem for problem in problems_of(finished_run(tmp_path, "A5_s1", "A4")))
+    # A1 data used for A1s, and an A1 run filed as A1v7
+    assert any(problem.startswith("data ") for problem in problems_of(finished_run(tmp_path, "A1s_s0", "A1")))
+    assert any(problem.startswith("data ") for problem in problems_of(finished_run(tmp_path, "A1v7_s0", "A1")))
+    # the A1v17 data YAML pointing at an export made without the v7 training view
+    v1_only = problems_of(finished_run(tmp_path, "A1v17_s1", "A1v17"), views_of=lambda path: EXPORT_VIEWS["isic2018"])
+    assert any("views" in problem for problem in v1_only)
     dirty = finished_run(tmp_path, "A4_s0", "A4", git={"commit": COMMIT, "dirty": True})
-    assert check.check_run(dirty, COMMIT, SCHEDULE, ROWS) == ["code had uncommitted changes"]
+    assert problems_of(dirty) == ["code had uncommitted changes"]
     sgd = finished_run(tmp_path, "A4_s1", "A4", hyp={**SCHEDULE, "optimizer": "auto"})
-    assert any("optimizer" in problem for problem in check.check_run(sgd, COMMIT, SCHEDULE, ROWS))
-    assert any("tag commit" in problem for problem in check.check_run(sgd, "c" * 40, SCHEDULE, ROWS))
+    assert any("optimizer" in problem for problem in problems_of(sgd))
+    assert any("tag commit" in problem for problem in problems_of(sgd, commit="c" * 40))
+
+
+def test_y26_maps_every_stock_layer_and_p2_rows_only_the_prefix():
+    from artigate.transfer import stock_layer_map
+
+    assert stock_layer_map(ROOT / ROWS["Y26"]["model"]) == {index: index for index in range(24)}
+    assert len(stock_layer_map(ROOT / ROWS["A0"]["model"])) == 17
+    assert len(stock_layer_map(ROOT / ROWS["A4"]["model"])) == 17
+
+
+@pytest.mark.skipif(not (ROOT / "weights" / "yolo26n-seg.pt").is_file(), reason="weights/yolo26n-seg.pt is not present")
+def test_y26_receives_every_stock_tensor_except_the_class_dependent_ones():
+    from artigate.artifact_loss import ArtiGateSegModel
+    from artigate.modules import register_modules
+    from artigate.transfer import load_partial_pretrained, stock_layer_map
+
+    register_modules()
+    model = ArtiGateSegModel(str(ROOT / ROWS["Y26"]["model"]), nc=1, ch=3, verbose=False)
+    report = load_partial_pretrained(model, ROOT / "weights" / "yolo26n-seg.pt", stock_layer_map(ROOT / ROWS["Y26"]["model"]))
+    loaded = {entry["destination"] for entry in report["mapped"]}
+    missing = [key for key in model.state_dict() if key not in loaded]
+    assert not report["missing_destination"] and len(loaded) == 740
+    # what Ultralytics also skips when fine-tuning to one class: the nc-wide class branches
+    assert all(key.startswith(("model.23.cv3.", "model.23.one2one_cv3.", "model.23.proto.semseg.2.")) for key in missing)
 
 
 def test_inspect_run_reads_beta_of_every_aga_block(load_script):
