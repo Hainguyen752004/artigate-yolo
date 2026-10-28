@@ -39,6 +39,33 @@ def test_session_warns_when_a_type_was_never_marked(load_script, capsys):
     assert tool.unused_types(dict(list(labels.items())[:19])) == []  # too few labels to judge
     tool.warn_unused(labels)
     assert "no image marked 'dark_corner'" in capsys.readouterr().out
+    everywhere = {f"I{i}": [int(i % 3 == 0), 0, int(i == 5), 1] for i in range(20)}
+    assert tool.always_types(everywhere) == ["dark_corner"] and tool.unused_types(everywhere) == ["ruler"]
+    tool.warn_unused(everywhere)
+    assert "every one of the 20 images is marked 'dark_corner'" in capsys.readouterr().out
+
+
+def test_toggles_start_off_on_every_new_image(tmp_path, load_script, monkeypatch):
+    """A key pressed on one image must not carry over to the next (rules out a state bug in the tool)."""
+    import sys
+
+    import cv2
+    import numpy as np
+
+    tool = load_script("label_artifacts")
+    folder = tmp_path / "images"
+    folder.mkdir()
+    for name in ("a", "b", "c"):
+        cv2.imwrite(str(folder / f"{name}.jpg"), np.full((40, 60, 3), 128, np.uint8))
+    keys = iter([ord("d"), 13, 13, ord("h"), ord("r"), 13])  # a: d; b: nothing; c: h and r
+    monkeypatch.setattr(tool.cv2, "imshow", lambda *args: None)
+    monkeypatch.setattr(tool.cv2, "destroyAllWindows", lambda: None)
+    monkeypatch.setattr(tool.cv2, "waitKey", lambda delay: next(keys))
+    out = tmp_path / "labels.csv"
+    monkeypatch.setattr(sys, "argv", ["label_artifacts.py", "--images", str(folder), "--out", str(out)])
+    tool.main()
+    rows = {r["image_id"]: [r[t] for t in tool.TYPES] for r in csv.DictReader(out.open(encoding="utf-8"))}
+    assert rows == {"a": ["0", "0", "0", "1"], "b": ["0", "0", "0", "0"], "c": ["1", "1", "0", "0"]}
 
 
 def test_agreement_kappa_disagreements_and_final_labels(tmp_path, load_script):
@@ -53,6 +80,10 @@ def test_agreement_kappa_disagreements_and_final_labels(tmp_path, load_script):
     assert report["n_common"] == 10 and report["n_a1"] == 20
     assert report["types"]["hair"]["kappa"] == pytest.approx(1.0)
     assert report["types"]["ruler"]["disagreements"] == 1 and report["types"]["ruler"]["kappa"] < 1.0
+    # ruler on the 10 common images: a1 positive on 0, 3, 6, 9; a2 on 0, 6, 9 -> PA = 6/7, NA = 12/13
+    assert report["types"]["ruler"]["positive_agreement"] == pytest.approx(6 / 7)
+    assert report["types"]["ruler"]["negative_agreement"] == pytest.approx(12 / 13)
+    assert script.specific_agreement([0, 0], [0, 0]) == (pytest.approx(float("nan"), nan_ok=True), 1.0)
     dis = out.parent / "test_disagreements.csv"
     rows = list(csv.DictReader(dis.open(encoding="utf-8")))
     assert rows == [{"image_id": "I3", "type": "ruler", "a1": "1", "a2": "0", "resolved": ""}]

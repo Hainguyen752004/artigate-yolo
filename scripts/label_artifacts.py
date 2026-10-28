@@ -66,11 +66,21 @@ def unused_types(labels, min_images=20):
     return [t for k, t in enumerate(TYPES) if not any(v[k] for v in labels.values())]
 
 
+def always_types(labels, min_images=20):
+    """Types marked present on every image after at least ``min_images`` labels: usually a misread definition."""
+    if len(labels) < min_images:
+        return []
+    return [t for k, t in enumerate(TYPES) if all(v[k] for v in labels.values())]
+
+
 def warn_unused(labels):
     for t in unused_types(labels):
         print(f"WARNING: no image marked '{t}' in {len(labels)} labels. If that is unexpected, turn off the "
               f"Vietnamese input method (Unikey/EVKey -> E) and check that its key shows [x] in the status bar.\n"
               f"CANH BAO: chua co anh nao duoc danh dau '{t}'. Kiem tra bo go tieng Viet da tat chua.")
+    for t in always_types(labels):
+        print(f"WARNING: every one of the {len(labels)} images is marked '{t}'. Re-read its definition.\n"
+              f"CANH BAO: ca {len(labels)} anh deu duoc danh dau '{t}'. Doc lai dinh nghia (va anh mau) cua loai nay.")
 
 
 def main():
